@@ -23,20 +23,29 @@ Query Adapter模块将图查询转化为对应Titan和HBase的查询，再将结
 对于重边的统计信息查询，其需要的统计结果都已在Titan的边中存储，故可以直接转换为对Titan边上的属性值查询。具体实现中需要维护一个映射关系作为元信息，以得知一个统计信息对应Titan边上的哪个属性。
 \subsection{关联Titan和HBase数据的查询}
 当查询具体的边数据时，就需要关联Titan和HBase来实现查询。在HybriG架构中，
-HybriG\_Edge = TitanEdgeID + HBaseRowData
+$$HybriG\_Edge = TitanEdgeID + HBaseRowData$$
 上式表示每条边对象的两部分组成，所有边集数据存储在HBase的边表中，每条边的数据占据一行，存储其所有属性，该行的行键是Titan中对应的边id拼接上该边的主键值。因此查询某条重边的数据，需要先在Titan中找到对应边的id，再在HBase边表中找到对应行的数据。
-下面以两点间边集查询为例阐述HybriG的实现。两点间边集查询是指给定两个点，查询它们之间满足某种条件的边。比如已经从邻域查询得知v1与v2相邻，现在想得到它们之间某种label的所有边。查询的伪代码见算法1.
-算法1.	两点间给定label的边集数据查询伪代码。
-输入：点v1，点v2，eLabel
-输出：两点间的所有符合条件的边集数据
-1.	e = v1.query().adjacent(v2).label(eLabel)
+下面以两点间边集查询为例阐述HybriG的实现。两点间边集查询是指给定两个点，查询它们之间满足某种条件的边。比如已经从邻域查询得知v1与v2相邻，现在想得到它们之间某种label的所有边。查询的伪代码见算法\ref{alg:edge_query}.
+\begin{algorithm}
+\caption{两点间给定label的边集数据查询伪代码}
+\label{alg:edge_query}
+\begin{algorithmic}[1] % 每1行显示一个行号
+\REQUIRE ~~\\
+点v1，点v2，eLabel
+\ENSURE ~~\\
+两点间的所有符合条件的边集数据
+
+\STATE e = v1.query().adjacent(v2).label(eLabel)
 .limit(1).edges().next()
-2.	IF e == null THEN
-3.	    RETURN null
-4.	END IF
-5.	res = hbaseTable.scan(e.id, next(e.id))
-6.	RETURN wrapEdges(res)
-算法1中，第1行查询两点间该label的边，并利用limit(1)修饰来加速，在HybriG架构中，Titan只在这两点间存储该label的一条边，因此我们可以利用边的唯一性来加速查询。第2-4行，若在Titan中查询到该label的边不存在，则不需要再在HBase中检索。第5行根据Titan中的边id，在HBase的边表中通过Scan查询得到所有边的具体数据。e.id是一个字符串，伪代码中的next(e.id)表示同等长度的下一个字符串，即将字符串e.id中最后一个字符的值加一。比如e.id为“abbb”，则next(e.id)为“abbc”。HBase的Scan函数返回连续的若干行数据，接收的两个参数是行键范围的起始和结束点，是一个左开右闭的区间。用e.id和next(e.id)作为该区间的左右端点，即可查询到所有行键以e.id作为前缀的数据。最后第6行wrapEdges函数将这些数据转换为具体的边对象，每行一条边。
+\IF{e == null}
+\RETURN null
+\ENDIF
+\STATE res = hbaseTable.scan(e.id, next(e.id))
+\RETURN wrapEdges(res)
+\end{algorithmic} 
+\end{algorithm}
+
+算法\ref{alg:edge_query}中，第1行查询两点间该label的边，并利用limit(1)修饰来加速，在HybriG架构中，Titan只在这两点间存储该label的一条边，因此我们可以利用边的唯一性来加速查询。第2-4行，若在Titan中查询到该label的边不存在，则不需要再在HBase中检索。第5行根据Titan中的边id，在HBase的边表中通过Scan查询得到所有边的具体数据。e.id是一个字符串，伪代码中的next(e.id)表示同等长度的下一个字符串，即将字符串e.id中最后一个字符的值加一。比如e.id为“abbb”，则next(e.id)为“abbc”。HBase的Scan函数返回连续的若干行数据，接收的两个参数是行键范围的起始和结束点，是一个左开右闭的区间。用e.id和next(e.id)作为该区间的左右端点，即可查询到所有行键以e.id作为前缀的数据。最后第6行wrapEdges函数将这些数据转换为具体的边对象，每行一条边。
 
 \section{HybriG的查询优势}
 \subsection{邻域点集相关查询的优势}
