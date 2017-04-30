@@ -20,7 +20,7 @@ Titan图接口graph，HBase边表接口hbaseTable，点v1，点v2，edgeLabel，
 \STATE updateStats(e, realEdge.properties)
 \STATE graph.commit()
 \STATE hbaseTable.put(e.id + realEdge.primaryKey, realEdge.properties)
-\end{algorithmic} 
+\end{algorithmic}
 \end{algorithm}
 
 传统的解决方案将所有重边存储在Titan中，边数据的导入逻辑只需要上述代码的第3、5、6行。HybriG架构中每条边的插入多加了一次查询操作（第1行），以及HBase边表的插入操作（第7行），带来了额外的时间开销。而且最耗时的也是这两步操作，分别要从底层存储读取数据以及持久化所有修改到底层存储中。如果有批量重边需要导入，这些开销可以让所有重边来平摊，即在数据导入时，对于两点间同label的重边作为一批来处理，这样就可以共享查询操作的结果，对Titan边上统计信息更新的持久化操作（commit）也只需进行一次。批量导入重边数据的伪代码如算法\ref{alg:insert_batch_edges}所示。
@@ -42,15 +42,15 @@ Titan图接口graph，HBase边表接口hbaseTable，点v1，点v2，edgeLabel，
 \FOR {edge in allRealEdges}
 \STATE {hbaseTable.put(e.id + realEdge.primaryKey, realEdge.properties)}
 \ENDFOR
-\end{algorithmic} 
+\end{algorithmic}
 \end{algorithm}
 
 在算法\ref{alg:insert_batch_edges}中，第1到8行是对Titan的更新，将两点间同label的重边作为一批处理，共享了对Titan的操作，从而平摊了额外的开销。另外第9到11行是对HBase边表的多次put操作，可以使用HBase的Bulk Loading 技术来进行加速。
 
 \section{数据一致性}
-在Titan的接口设计中，对图(graph)的初次操作将自动打开一个事务，执行graph.commit()时该事务提交，将事务里的修改持久化到底层存储中，Titan的事务保证了自身数据的一致性。HybriG架构由于把边数据的存储分开在Titan和HBase上，需要保证Titan和HBase上数据的一致性。比如Titan上关于重边的统计信息跟HBase边表的一致性，或者HBase边表里各行行键的边id部分跟Titan里的一致性。由于实现强一致性的代价过高，本架构保证的是Titan和HBase数据的最终一致性[8]，即系统保证在经过错误恢复后，数据最终会达到一致的状态。最终一致性足以满足应用场景的需求。
+在Titan的接口设计中，对图(graph)的初次操作将自动打开一个事务，执行graph.commit()时该事务提交，将事务里的修改持久化到底层存储中，Titan的事务保证了自身数据的一致性。HybriG架构由于把边数据的存储分开在Titan和HBase上，需要保证Titan和HBase上数据的一致性。比如Titan上关于重边的统计信息跟HBase边表的一致性，或者HBase边表里各行行键的边id部分跟Titan里的一致性。由于实现强一致性的代价过高，本架构保证的是Titan和HBase数据的最终一致性\supercite{eventually_consistent}，即系统保证在经过错误恢复后，数据最终会达到一致的状态。最终一致性足以满足应用场景的需求。
 由于只有边集数据是跨Titan和HBase存储的，下面讨论的都是边数据的导入。图 9演示了边数据导入的三个步骤，第①步对应前述算法3中的第1~7行，更新Titan数据；第②步对应第8行，提交修改；第③步对应第9~11行，利用边id将边数据插入HBase边表中。对数据的持久化修改是第②③步，数据会出现不一致的原因是②③并不是原子的。如果②成功但是③失败了，即成功持久化了对Titan数据的修改，但对HBase边表的修改却失败了，则两方的数据出现不一致。失败的原因是多种多样的，比如程序内存溢出（Out of Memory）、网络中断、硬件故障等。
- 
+
 图 9	边的数据导入分三步：①更新Titan数据；②提交Titan更改即graph.commit()；③将数据插入HBase边表中
 当数据导入程序在故障之后重启时，这种不一致性需要被修复。该批次的边数据将会被重新导入，为了得知②是否已经成功，我们需要知道Titan中的数据是否已经被修改了。这可以利用Titan的
 事务原子性来实现：在②提交之前，往Titan中写入一个成功标志（可以用一个点或属性来表示），然后再提交。根据原子性，该标志被成功写入当且仅当Titan的更新都被持久化。这样当数据导入程序重启时，我们先查看该标志是否存在，便可得知②是否已经成功了。若其已成功，则跳过这一步，直接进行第③步。该过程的伪代码如算法\ref{alg:consistence}所示。
@@ -74,7 +74,7 @@ graph，batchID，HBase边表hbaseTable，点v1，点v2，edgeLabel，allRealEdg
 \FOR {edge in allRealEdges}
 	\STATE {hbaseTable.put(e.id + edge.pk, properties)}
 \ENDFOR
-\end{algorithmic} 
+\end{algorithmic}
 \end{algorithm}
 
 算法\ref{alg:consistence}中，第2行的函数hasNotCompleted判断给定的Titan图中是否存在给定批次的成功标志。若不存在则执行第3到10行更新Titan，其中第9行的markCompleted函数在Titan图中插入该批次的成功标志。

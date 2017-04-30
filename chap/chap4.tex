@@ -13,7 +13,7 @@ Query Adapter模块将图查询转化为对应Titan和HBase的查询，再将结
 更详细的属性图查询接口，可以查看Blueprints中的定义。
 
 除了基本的属性图查询接口，HybriG还提供了重边的统计信息查询。比如查询两点间某种label的重边具体的边数、或者查询某个属性上的聚集信息（如MIN、MAX、AVG、SUM等），可以根据业务需要来定制具体统计的信息。比如通话关系所表示的边中，有记录通话开始时间戳的属性。可以设置HybriG统计该类重边在该属性的最小值，从而可以查询两人最早的通话发生时间。在HybriG架构中，这些统计信息存储在Titan中的边上，因而可以快速返回结果，无需再对具体的边数据（存在HBase边表中）进行统计。
-区别于传统Titan图数据库，我们没有实现事务性的接口，如newTransaction、commit和rollback等。因为业务场景可以规避对事务性的依赖，在富含重边的应用场景中，边集数据都是事件记录类型的数据，数据导入后就无需修改。而且数据导入可以分批定期执行，不会有多数据源写入导致的写-写冲突或读-写冲突。另外HybriG的数据分开存储在Titan和HBase两个数据库中，实现严格事务的代价比较大，会带来显著的性能牺牲。如Google的Percolator[7]在BigTable上实现了分布式事务，但写性能有75\%的牺牲。
+区别于传统Titan图数据库，我们没有实现事务性的接口，如newTransaction、commit和rollback等。因为业务场景可以规避对事务性的依赖，在富含重边的应用场景中，边集数据都是事件记录类型的数据，数据导入后就无需修改。而且数据导入可以分批定期执行，不会有多数据源写入导致的写-写冲突或读-写冲突。另外HybriG的数据分开存储在Titan和HBase两个数据库中，实现严格事务的代价比较大，会带来显著的性能牺牲。如Google的Percolator\supercite{percolator}在BigTable上实现了分布式事务，但写性能有75\%的牺牲。
 
 \section{查询实现}
 查询的实现可分为两部分，一部分只依赖于Titan中的数据，另一部分需要联合Titan和HBase边表的数据来返回结果。下面分别叙述。
@@ -42,7 +42,7 @@ $$HybriG\_Edge = TitanEdgeID + HBaseRowData$$
 \ENDIF
 \STATE res = hbaseTable.scan(e.id, next(e.id))
 \RETURN wrapEdges(res)
-\end{algorithmic} 
+\end{algorithmic}
 \end{algorithm}
 
 算法\ref{alg:edge_query}中，第1行查询两点间该label的边，并利用limit(1)修饰来加速，在HybriG架构中，Titan只在这两点间存储该label的一条边，因此我们可以利用边的唯一性来加速查询。第2-4行，若在Titan中查询到该label的边不存在，则不需要再在HBase中检索。第5行根据Titan中的边id，在HBase的边表中通过Scan查询得到所有边的具体数据。e.id是一个字符串，伪代码中的next(e.id)表示同等长度的下一个字符串，即将字符串e.id中最后一个字符的值加一。比如e.id为“abbb”，则next(e.id)为“abbc”。HBase的Scan函数返回连续的若干行数据，接收的两个参数是行键范围的起始和结束点，是一个左开右闭的区间。用e.id和next(e.id)作为该区间的左右端点，即可查询到所有行键以e.id作为前缀的数据。最后第6行wrapEdges函数将这些数据转换为具体的边对象，每行一条边。

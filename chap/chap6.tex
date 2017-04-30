@@ -81,7 +81,7 @@ v.getEdges(Direction.BOTH, eLabel)
 图12展示的是两种系统的查询时间，以及查询耗时中具体的时间组成，其中HybriG的查询时间分为Titan中的查询耗时和HBase中的查询耗时两部分。当边集规模增大时，HybriG在Titan中的查询耗时并没有显著增加，而在HBase边表中的查询耗时增长的幅度也没有传统方案中的Titan大。
 
 \section{边数据的导入速度}
-关于边的数据导入速度，我们对不同规模的图进行了测试。对比直接将图存储在Titan以及将图存储在HybriG的两种方案。我们基于MapReduce[9]开发了分布式的导入程序。表\ref{edge_load_perf}是边数据导入时间的统计：
+关于边的数据导入速度，我们对不同规模的图进行了测试。对比直接将图存储在Titan以及将图存储在HybriG的两种方案。我们基于MapReduce\supercite{mapreduce}开发了分布式的导入程序。表\ref{edge_load_perf}是边数据导入时间的统计：
 \begin{table}[!hbp]
 \begin{tabular}{|c|c|c|c|c|c|}
 \hline
