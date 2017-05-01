@@ -6,7 +6,7 @@
 
 set JOBNAME=thesis
 @rem 这个变量的值可以为 latex 或 pdflatex。
-set LATEX=latex
+set LATEX=pdflatex
 set BIBTEX=biber -l zh__pinyin
 set DVIPDF=dvipdfmx
 
