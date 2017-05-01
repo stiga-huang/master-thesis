@@ -10,8 +10,7 @@ Data Loder模块负责图数据的导入，包括点的导入和边的导入。�
 \caption{插入一条边的伪代码}
 \label{alg:insert_one_edge}
 \begin{algorithmic}[1] % 每1行显示一个行号
-\REQUIRE ~~\\
-Titan图接口graph，HBase边表接口hbaseTable，点v1，点v2，edgeLabel，边数据realEdge
+\REQUIRE Titan图接口graph，HBase边表接口hbaseTable，点v1，点v2，edgeLabel，边数据realEdge
 
 \STATE e = v1.query().adjacent(v2).label(edgeLabel).limit(1).edges().next()
 \IF{e == null}
@@ -28,8 +27,7 @@ Titan图接口graph，HBase边表接口hbaseTable，点v1，点v2，edgeLabel，
 \caption{重边数据的批量导入}
 \label{alg:insert_batch_edges}
 \begin{algorithmic}[1] % 每1行显示一个行号
-\REQUIRE ~~\\
-Titan图接口graph，HBase边表接口hbaseTable，点v1，点v2，edgeLabel，重边数据集allRealEdges
+\REQUIRE Titan图接口graph，HBase边表接口hbaseTable，点v1，点v2，edgeLabel，重边数据集allRealEdges
 
 \STATE v1.query().adjacent(v2).label(edgeLabel).limit(1).edges().next()
 \IF{e == null}
@@ -65,8 +63,7 @@ Titan图接口graph，HBase边表接口hbaseTable，点v1，点v2，edgeLabel，
 \caption{保证一致性的边集数据批量导入}
 \label{alg:consistence}
 \begin{algorithmic}[1] % 每1行显示一个行号
-\REQUIRE ~~\\
-graph，batchID，HBase边表hbaseTable，点v1，点v2，edgeLabel，allRealEdges，所有边的属性
+\REQUIRE graph，batchID，HBase边表hbaseTable，点v1，点v2，edgeLabel，allRealEdges，所有边的属性
 \STATE e = v1.query().adjacent(v2).label(edgeLabel).limit(1).edges().next()
 \IF {hasNotCompleted(graph, batchID)}
 	\IF {e == null}

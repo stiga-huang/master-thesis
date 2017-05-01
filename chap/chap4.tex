@@ -30,10 +30,8 @@ $$HybriG\_Edge = TitanEdgeID + HBaseRowData$$
 \caption{两点间给定label的边集数据查询伪代码}
 \label{alg:edge_query}
 \begin{algorithmic}[1] % 每1行显示一个行号
-\REQUIRE ~~\\
-点v1，点v2，eLabel
-\ENSURE ~~\\
-两点间的所有符合条件的边集数据
+\REQUIRE 点v1，点v2，eLabel
+\ENSURE 两点间的所有符合条件的边集数据
 
 \STATE e = v1.query().adjacent(v2).label(eLabel)
 .limit(1).edges().next()
