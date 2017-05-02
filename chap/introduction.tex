@@ -4,14 +4,17 @@
 \chapter{引言}
 
 \section{分布式图处理系统}
-图数据分析与处理是大数据背景下的一大应用分支\supercite{big_data}，大数据背景下的图处理系统可以分为图计算框架和图数据库两大类。
-图计算框架旨在高效地进行全图量级的并行计算，如计算PageRank\supercite{pagerank}、社区发现\supercite{community_detection}（Community Detection）、子图匹配\supercite{subgraph_listing}等，提供的是对OLAP（Online Analytical Processing）的支持。这类系统中，Pregel\supercite{pregel}、GraphLab\supercite{graphlab}、PowerGraph\supercite{powergraph}支持BSP\supercite{BSP}模型的计算，对图数据进行特定的分割，使得集群中的机器可以在内存中计算分区的数据，再通过交互完成全量数据的计算。上述系统中，Pregel没有开源，GraphLab和PowerGraph都需要单独部署，无法有机地融入已有的大数据生态系统中，需要导出数据以供计算。GraphX\supercite{graphx}解决了这个问题，其是基于分布式内存计算框架Spark\supercite{spark}实现的图计算引擎，使得图计算可以融入整个数据流处理的框架。相对于分布式计算框架，GraphChi\supercite{graphchi}则追求在单机完成大规模图数据的计算问题。在图计算领域还有许多研究旨在提高图计算框架在特定问题的处理性能，如\supercites{xuning_LogGP,xuning_2,shaoxia_1,shaoxia_2,shaoxia_3}等。学术界对图计算的研究热情普遍高涨。
+互联网的飞速发展产生了海量的数据，特别是最近几年智能移动设备的快速普及，更使得数据呈爆炸式增长。在大数据时代，海量数据的处理需求已远超单台机器所能提供的性能，为此人们在廉价的商用机集群上构筑了各式各样的分布式系统，以获得可靠、可扩展的海量数据处理能力。在各种数据表示方式中，图（Graph）由于其丰富的表达能力而得到了广泛应用。图中的顶点可以表示实体，图中的边表示实体间的关系。社交网络、语义网络、生物信息网络是典型的图应用场景。
+图数据分析与处理是大数据背景下的一大研究分支\supercite{big_data}，大数据背景下的图处理系统可以分为图计算框架和图数据库两大类。
 
-图数据库专注于图数据的管理，提供高效的图遍历查询（graph traversal）。图数据模型则是指图数据库如何以图的方式对数据进行抽象 \supercite{graph_models_survey}，应用较广泛的图数据模型有RDF模型和属性图模型。RDF全称为Resource Description Framework，是由W3C制定的知识描述标准，使得按RDF表示的不同数据源可以进行数据交换或合并。RDF中的数据单元是由主语、谓语、宾语组成的三元组，可以直接对应为图上的一条边，因此将RDF模型归类为图数据模型。
-著名的RDF数据库有DBPedia、ProBase等。
-当今的图数据库大都采用属性图模型设计\supercite{graph_database_models}，如DEX\supercite{DEX}、GraphChi-DB\supercite{graphchi-db}、Neo4j、Titan等，其中DEX和GraphChi-DB都只是单机数据库，Neo4j的开源版本也是单机的，只适合处理中等规模的图。Titan的底层实现了可插拔的存储接口，可部署在HBase、Cassandra或BerkeleyDB之上，因此可以很好地与Hadoop集群结合，组成统一的数据处理框架。然而，现有的图数据库都没有考虑含有大量重边的属性图应用场景。HybriG架构填补了这个空白，为含有大量重边的属性图应用场景提供了一种可行的解决方案。
+图计算框架旨在高效地进行全图量级的并行计算，如计算PageRank\supercite{pagerank}、社区发现\supercite{community_detection}（Community Detection）、子图匹配\supercite{subgraph_listing}等，提供的是对OLAP（Online Analytical Processing）的支持。这类系统中，Pregel\supercite{pregel}、GraphLab\supercite{graphlab}、PowerGraph\supercite{powergraph}支持BSP\supercite{BSP}(Bulk Synchronous Parallel)模型的计算，对图数据进行特定的分割，使得集群中的机器可以在内存中计算分区的数据，再通过交互完成全量数据的计算。上述系统中，Pregel没有开源，GraphLab和PowerGraph都需要单独部署，无法有机地融入已有的大数据生态系统中，需要导出数据以供计算。GraphX\supercite{graphx}解决了这个问题，其是基于分布式内存计算框架Spark\supercite{spark}实现的图计算引擎，使得图计算可以融入整个数据流处理的框架。相对于分布式计算框架，GraphChi\supercite{graphchi}则追求在单机完成大规模图数据的计算问题。在图计算领域还有许多研究旨在提高图计算框架在特定问题的处理性能，如\supercites{xuning_LogGP,xuning_2,shaoxia_1,shaoxia_2,shaoxia_3}等。学术界对图计算的研究热情普遍高涨。
 
-\section{图数据库Titan的使用现状及问题}
+图数据库专注于图数据的管理，提供高效的图遍历查询（graph traversal）。图数据模型则是指图数据库如何以图的方式对数据进行抽象 \supercite{graph_models_survey}，应用较广泛的图数据模型有RDF\footnote{RDF 1.1 Concepts and Abstract Syntax, https://www.w3.org/TR/rdf11-concepts }模型和属性图模型。RDF全称为Resource Description Framework，是由W3C制定的知识描述标准，使得按RDF表示的不同数据源可以进行数据交换或合并。RDF中的数据单元是由主语、谓语、宾语组成的三元组，可以直接对应为图上的一条边，因此将RDF模型归类为图数据模型。
+著名的RDF数据库有Yago\supercite{yago}、DBpedia\supercite{dbpedia}、ProBase\supercite{probase}等。
+当今的图数据库大都采用属性图模型设计\supercite{graph_database_models}，如DEX\supercite{DEX}、GraphChi-DB\supercite{graphchi-db}、Neo4j\supercite{neo4j}、Titan\footnote{Titan, http://titan.thinkaurelius.com}等，其中DEX和GraphChi-DB都只是单机数据库，Neo4j的开源版本也是单机的，只适合处理中等规模的图。Titan则是目前应用广泛的分布式图数据库，由于其完全开源免费，因此在社区中得到了广泛关注。Titan的底层实现了可插拔的存储接口，可部署在HBase\footnote{Apache HBase, http://hbase.apache.org }、Cassandra\supercite{cassandra}或BerkeleyDB\footnote{Oracle Berkeley DB Java Edition, http://www.oracle.com/technetwork/database/berkeleydb }之上，因此可以很好地与Hadoop\footnote{Hadoop, http://hadoop.apache.org }集群结合，融入已有的大数据生态系统，组成统一的数据处理框架。
+%然而，现有的图数据库都没有考虑含有大量重边的属性图应用场景。HybriG架构填补了这个空白，为含有大量重边的属性图应用场景提供了一种可行的解决方案。
+
+\section{传统图数据库的局限性}
 图是一种表达能力丰富的数据结构，一般用G = (V, E)表示一个图，其中V是图中的点集，E是图中的边集。如果图中的边是有方向的，则称该图为有向图。在有向图中，如果两条边具有相同的起点和终点，则称这样的边为重边（multi-edge）。属性图\supercite{property_graph}是一种带重边的有向图，图中的每个元素（点/边）可以拥有任意数量的属性值。特别地，每个元素都有一个label属性，标识该元素的类别。
 
 实际应用中，有些属性图会含有大量重边。比如在电信行业的通话关系图中，两人之间可以发生多次通话关系；又比如金融行业的交易关系图中，两人之间可以发生多次交易关系。更复杂的，在刑侦应用中，整个情报系统获得的信息融合成一个知识图谱\supercite{knowledge_graph}，其中的实体和关系类型丰富多样。比如实体类别有人、汽车、公司等，实体间的关系有亲属关系、共同出行关系、通话关系等。有的关系是可以多次重复的，频次可能成百上千，这使得两个实体间不仅有多种label（即多种关系）的边，还包含大量重边。图\ref{fig:property_graph}是属性图在刑侦场景中的一个简单示例，显示了类型为人的结点以及通话关系和共同出行关系。其中共同出行关系是双向的，因此在图中以无向边表示。刑侦场景中的典型查询包括：从一个人出发查询与其相关的所有人（邻域点集查询）、查询两个人在几跳内是否有关系（路径查询）、查询两人之间的所有关系（两点间边集查询）等。

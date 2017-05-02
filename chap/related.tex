@@ -20,7 +20,7 @@ HBase由于其优异的可扩展性和稳定性，在产业界得到了广泛应
 
 \section{图数据库Titan}
 图数据库是以图的形式来表示和管理数据的数据库\supercite{graph_models_survey}，与传统的关系型数据库相比，图数据库在图结构相关的查询上有更优异的性能，如多跳邻域查询、路径查询、局部聚集系数计算等。
-Titan是一个基于Blueprints 接口设计的开源图数据库，其实现了一个可插拔的存储接口，可以部署在BerkerlyDB 、HBase或Cassandra\supercite{cassandra}之上。相比于著名的图数据库Neo4j\supercite{neo4j}，Titan是完全开源免费的，其受关注度正在与日俱增。而且由于Hadoop生态系统在产业界的广泛应用，在HBase上搭建Titan，即使用Titan on HBase应对图处理需求是较为常见的选择。
+Titan是一个基于Blueprints 接口设计的开源图数据库，其实现了一个可插拔的存储接口，可以部署在BerkerlyDB 、HBase或Cassandra之上。相比于著名的图数据库Neo4j，Titan是完全开源免费的，其受关注度正在与日俱增。而且由于Hadoop生态系统在产业界的广泛应用，在HBase上搭建Titan，即使用Titan on HBase应对图处理需求是较为常见的选择。
 在图数据库Titan中，基于BigTable模型，数据在HBase中以邻接表的形式存储，如图\ref{fig:adj_list}所示。
 
 \begin{figure}[htbp]
