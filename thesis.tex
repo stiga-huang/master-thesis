@@ -37,7 +37,7 @@
 	school = {信息科学技术学院},
 	cmajor = {计算机软件与理论}, emajor = {Computer Science},
 	direction = {数据仓库与数据挖掘的方法和应用},
-	cmentor = {崔斌教授}, ementor = {Prof.\ Cui Bin},
+	cmentor = {崔~斌~~教授}, ementor = {Prof.\ Cui Bin},
 	ckeywords = {属性图，重边，图数据库，Titan，HBase，架构设计}, ekeywords = {property graph, multi-edge, graph database, Titan, HBase, architecture}
 }
 % 载入参考文献数据库（注意不要省略“.bib”）。
@@ -50,8 +50,13 @@
 \renewcommand{\algorithmicrequire}{\textbf{输入:}}
 \renewcommand{\algorithmicensure}{\textbf{输出:}}
 
-% 表格包
+% 表格包, 支持表格中的斜线
 \usepackage{diagbox}
+
+% 使链接不带外边框
+\hypersetup{
+    hidelinks=true
+}
 
 \begin{document}
 	% 以下为正文之前的部分，默认不进行章节编号。
