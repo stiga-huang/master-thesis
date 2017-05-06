@@ -1,7 +1,7 @@
 % Copyright (c) 2014,2016 Casper Ti. Vector
 % Public domain.
 
-\chapter{HybriG系统设计}
+\chapter{HybriG系统设计} \label{chap:design}
 \section{HybriG的系统架构概述}
 为了更好地应对含有大量重边的属性图应用场景，规避传统图数据库的局限性，本文提出了一种复合存储架构HybriG。HybriG架构应用在明略数据的关联数据分析平台SCOPA中，提供属性图数据的查询与存储。
 HybriG将图的连接信息和点集的属性数据存储在Titan中，边集的所有属性数据则直接存储在HBase中。由于HybriG架构基于Titan和HBase实现存储，而Titan的数据本身也存储在HBase中，为了方便表述以及避免混淆，下文中的HBase指的都是不包含Titan数据表的部分。Titan在HBase中的数据表直接用Titan代称。

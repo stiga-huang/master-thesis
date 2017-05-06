@@ -1,7 +1,7 @@
 % Copyright (c) 2014,2016 Casper Ti. Vector
 % Public domain.
 
-\specialchap{结论}
+\specialchap{结论} \label{chap:conclusion}
 本文提出了一种基于Titan和HBase的复合存储架构——HyBriG，可以高效处理含有大量重边的属性图。相比于传统图数据库Titan的实现，HyBriG在处理大量重边时拥有更优异的查询性能，在数据导入方面也有不错的表现。
 
 在获得高性能的同时，所带来的牺牲就是简化了对事务性的支持。然而，含有大量重边的许多应用场景并不需要很强的事务性支持，HybriG架构提供了最终一致性，足以满足这些场景的应用需求。
