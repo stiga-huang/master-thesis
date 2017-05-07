@@ -3,8 +3,8 @@
 
 \chapter{相关工作}  \label{chap:related}
 \section{分布式数据库HBase}
-HBase是Google BigTable\supercite{bigtable}的开源实现 ，是Hadoop 生态系统中一个列式NoSQL数据库，搭建在HDFS（Hadoop分布式文件系统）之上。HBase由于其优异的可扩展性和稳定性，在产业界得到了广泛应用。
-下面分别介绍HBase的数据模型、操作接口、系统架构、存储实现以及HBase与同类系统的对比。
+HBase是Google BigTable\supercite{bigtable}的开源实现 ，是Hadoop 生态系统中一个列式NoSQL数据库，搭建在HDFS（Hadoop分布式文件系统）之上。HBase由于其优异的可扩展性和稳定性，在产业界得到了广泛应用。HBase也是图数据库Titan最常使用的存储引擎，为了介绍Titan的底层实现，此处先详述HBase的相关实现。
+下面分别介绍HBase的数据模型、操作接口、存储实现以及HBase与同类系统的对比。
 
 \subsection{HBase数据模型}
 在HBase中，数据首先以表为单位进行组织。数据表以行为单位组织，每行由一个键值唯一标识，称为行键（row key）。一行中可以包含任意列的数据，每列对应的数据可分为多个版本（对应多个时间戳）。每个版本的数据是最小粒度的数据单元，称为一个单元格（cell）。因此一个单元格由行键、列名、版本号（时间戳）和值（value）组成。
@@ -29,30 +29,55 @@ HBase也被认为是一个键值存储（Key-Value Store），相当于数据结
 \subsection{HBase操作接口}
 HBase提供了一个交互式的shell作为操作接口，同时也提供原生的Java接口，另外还提供了thrift API，支持C++、Python、Ruby、Perl、PHP等语言。下面以HBase shell为例叙述HBase的操作接口。
 
-HBase建表时需要指定表中的所有列族，在建表之后还可以增加或删除列族，如下所示：
+HBase建表时需要指定表中的所有列族，下面的操作创建了名为table1的数据表，它拥有两个列族cf1和cf2：
 \begin{verbatim}
 HBase Shell > create 'table1', 'cf1', 'cf2'
+\end{verbatim}
+
+在建表之后还可以增加或删除列族，也可以修改列族的配置，但需要disable整个表，即中止所有读写请求，操作结束后再enable该表：
+\begin{verbatim}
+HBase Shell > disable 'table1'
+HBase Shell > alter 'table1', {NAME => 'cf2', VERSIONS => 5}
 HBase Shell > alter 'table1', 'delete' => 'cf1'
 HBase Shell > alter 'table1', 'cf3'
+HBase Shell > enable 'table1'
 \end{verbatim}
+上面的操作设置列族cf2的最大版本数为5，即每列最多存储5个版本的数据。下一行删除列族cf1及其下的所有数据。之后添加一个列族cf3。
 
-HBase提供Put、Get、Scan、Delete接口进行数据的增删查改。Put接口给某一行中插入一个单元格。Delete接口跟Put接口相反，用来删除一个单元格的数据 。Get接口跟Scan接口用来读取数据。其中Get接口能读取的范围不超过一行，即Get接口可以读取一个单元格，也可以读取一行中所有的单元格，但读取的对象都只能在同一行中。Scan接口则用来读取连续的多行数据
-
-
-Get接口能读取某一单元格的数据，也能读取某一行所有单元格的数据。
-，能够具体操作一行中的给定列。另外，HBase提供给定行键范围的Scan接口，可以快速地获得连续几行的数据。Scan接口也可指定特定的列或附加Filter来过滤无关数据。
-
+HBase提供Put、Get、Scan、Delete接口进行数据的增删查改。Put接口给某一行中插入一个单元格，需要指定行键、列族和列修饰符。时间戳则是可选的，若没有指定，则使用插入时间作为时间戳。
 \begin{verbatim}
 HBase Shell > create 'table1', 'cf1', 'cf2'
-HBase Shell > put 'table1', 'row1', 'cf:a', 'value1'
-HBase Shell > put 'table1', 'row2', 'cf:b', 'value2'
-HBase Shell > put 'table1', 'row1', 'cf:b', 'value3', timestamp1
-
+HBase Shell > put 'table1', 'row1', 'cf1:a', 'value1'
+HBase Shell > put 'table1', 'row2', 'cf2:b', 'value2'
+HBase Shell > put 'table1', 'row1', 'cf1:b', 'value3', timestamp1
 \end{verbatim}
 
+Delete接口跟Put接口相反，用来删除一个单元格的数据。由于参数相同，这里不再举例。
+
+Get接口跟Scan接口用来读取数据，其中Get接口用来读取一行内的数据，Scan接口用来读取多行的数据。Get接口只需给定一个行键，参数里的列族、列修饰符和时间戳都是可选的，会把满足条件的所有单元格都返回。Get接口能读取的范围不超过一行，即Get接口可以读取一个单元格，也可以读取一行中所有的单元格，但读取的对象都只能在同一行中。下面是一些读取示例：
+\begin{verbatim}
+HBase Shell > get 'table1', 'row1'
+HBase Shell > get 'table1', 'row1', 'cf2:a'
+HBase Shell > get 'table1', 'row1', {COLUMN => ['cf:a', 'cf:b', 'cf:c']}
+HBase Shell > get 'table1', 'row1', {COLUMN => 'cf:c', TIMESTAMP => ts1}
+\end{verbatim}
+
+Scan接口则用来读取连续的多行数据。在HBase数据表中各行是按行键升序排列的，因此Scan时只需给定一个起始行键和一个终止行键（不包含），就可以返回所有的这些行。如果不给定范围，则Scan接口返回表中的所有数据。Scan接口也可指定特定的列或附加Filter来过滤无关数据。下面是一些操作示例：
+\begin{verbatim}
+HBase Shell > scan 'table1', {LIMIT => 100}
+HBase Shell > scan 'table1', {COLUMNS => ['cf1:a', 'cf1:b'], LIMIT => 10,
+                              STARTROW => 'xyz'}
+\end{verbatim}
+第一行读取表中的100行数据，第二行从行键大于等于'xyz'的行中读取列族为cf1，列修饰符为a或b的10行数据。
+
+之所以要区分Get和Scan接口，是因为HBase只保证单行数据的原子性，即Get接口不会返回部分更新的数据，但Scan接口没有这个保证。
 在本节也可以看到，HBase并没有提供类型关系数据库的SQL接口，这是所有NoSQL数据库的一个特点，都是根据自己的数据模型因地制宜地提供对应的接口。
 
 % ACID的支持情况是否要说？
+
+\subsection{HBase存储实现}
+HBase集群采用Master-Slave架构，其中Master节点为HMaster，Slave节点为RegionServer，每台工作机器只需部署一个RegionServer。
+HMaster和RegionServer之间通过ZooKeeper\footnote{ZooKeeper, http://zookeeper.apache.org/}来协同工作。HMaster没有单点问题，HBase中可以启动多个HMaster，通过Zookeeper的Master Election机制保证总有一个HMaster在运行。
 
 \begin{figure}[htbp]
 \centering
@@ -61,12 +86,19 @@ HBase Shell > put 'table1', 'row1', 'cf:b', 'value3', timestamp1
 \label{fig:big_table}
 \end{figure}
 
-BigTable是Google在2008年提出的一个处理海量数据的NoSQL数据库。图\ref{fig:big_table}是BigTable的模型示例。在BigTable的模型中，数据表以行为单位组织，每行由一个键值唯一标识，称为行键（rowkey）。一行中可以包含任意数目的单元格（cell），每个单元格由列名、版本号（时间戳）和值（value）组成。BigTable中的行是以行键排序的，每一行中的单元格又是以列名和版本号进行排序，这使得其与关系数据库一样能快速定位到目标单元格。区别于传统关系模型，BigTable中的列名不需要事先定义，因为其底层实际为一个Key-Value 存储，就如数据结构Map不需要事先定义所有key。每个列名从属于一个列族，只有列族需要在定义表结构时给出。
+RegionServer负责管理数据表的分片（Region）。HBase采用BigTable数据模型（如图\ref{fig:big_table}）。在BigTable数据表中，各行首先按行键升序排列，行内的各单元格再依次按列名、时间戳排序。作为一个列式存储数据库，HBase中不同列族的数据是分开存储的。由于行键有序，因此可以装数据表水平切分为不相交的Region，每个Region由一个左闭右开的行键区间来表示。每个Region交由一个RegionServer来管理，RegionServer进一步将这些数据存储在HDFS中，并响应这个Region上的读写请求。
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=120mm]{fig/HBase_region.pdf}
+\caption{HBase Region内部结构}
+\label{fig:hbase_region}
+\end{figure}
 
-\subsection{HBase系统架构}
-\subsection{HBase存储实现}
+每个Region在RegionServer内的组成成分如图\ref{fig:hbase_region}所示。
+Region内部先按列族分为不同的HStore，每个HStore采用LSM Tree\supercite{LSM_tree}数据结构进行存储。在LSM Tree中，数据更新先写入内存缓冲区MemStore中，在MemStore中数据是有序排列的。当MemStore写满时，会将数据flush进磁盘成为文件，即一个StoreFile。由于生成StoreFile时是磁盘的顺序写，因此具有很高的性能。HBase利用LSM Tree数据结构实现了高效的随机写入。然而给定一个Key值要进行读取时，需要在MemStore和所有StoreFile中进行查找，如果StoreFile数目过多将会影响读取速度。RegionServer有线程会定期对HStore里的StoreFile进行合并（compaction），以降低StoreFile的数目，减小读请求的开销。
 
+最后需要补充的是，每个RegionServer会维护一个WAL（Write Ahead Log）文件，写请求在写入MemStore前都需要先写入WAL中，以保证宕机时内存中的数据不会丢失。WAL和底层的StoreFile都是存储在HDFS上的，具有多复本的容错机制。当某台RegionServer宕机时，HMaster会将这些文件分配给其它RegionServer进行恢复，从而实现容错性（Fault Tolerance）。
 
 \subsection{HBase与同类系统对比}
 
