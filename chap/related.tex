@@ -188,6 +188,14 @@ gremlin> hercules.out('battled').map
 ==>{name=cerberus}
 \end{lstlisting}
 
+Gremlin也可以表达一些复杂的查询条件，如给定两个点v1和v2，查询它们之间的所有边：
+\begin{lstlisting}
+gremlin> v1.bothE   // get all edges of v1
+gremlin> v1.bothE.filter{it.outV.next() == v2 || it.inV.next() == v2}
+\end{lstlisting}
+第一行的查询将返回v1的所有出边和入边。第二行的查询则在所有边的基础上加了个filter，接收一个表达式（Closure）作用在迭代器上，迭代器it每次指向一条边，判断它的端点是否包含v2，如果包含则表明是v1和v2共用的边。因此第二行返回v1、v2相连的所有边。
+
+
 \subsubsection{数据操作接口（DML接口）}
 用Gremlin在图中插入点和边是很方便的，下面是一个插入数据的示例：
 \begin{lstlisting}
@@ -200,8 +208,9 @@ e = alice.addEdge("isFriend", bob)
 e.setProperty("since", 1991)
 g.commit()
 \end{lstlisting}
-g是一个TitanGraph对象，第1、2行往图中插入一个label为"person"的点，并设置属性"name" 为"Alice" ，第3、4行类似地插入一个表示Bob的点。第6、7行在这两个点间连一条label为 "isFriend"的边，并设置边上的属性。最后第8行需要执行commit，以将修改持久化到存储中。
+g是一个TitanGraph对象，第1、2行往图中插入一个label为"person"的点，并设置属性"name" 为"Alice" ，第3、4行类似地插入一个表示Bob的点。第6、7行在这两个点间连一条label为 "isFriend"的边，并设置边上的属性。最后第8行需要执行commit，以将修改持久化到存储中。同时这也表示当前事务的结束，在Titan中，对图（即对象g）的初次操作将打开一个Thread Local的事务，只有执行commit才能结束当前事务。
 
+更详细的Gremlin接口介绍，可参见Gremlin文档\footnote{GremlinDocs, http://gremlindocs.spmallette.documentup.com/}。
 
 \subsection{Titan存储实现}
 在图数据库Titan中，基于BigTable模型，数据在HBase中以邻接表的形式存储，如图\ref{fig:adj_list}所示。
