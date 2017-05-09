@@ -30,44 +30,44 @@ HBase也被认为是一个键值存储（Key-Value Store），相当于数据结
 HBase提供了一个交互式的shell作为操作接口，同时也提供原生的Java接口，另外还提供了thrift API，支持C++、Python、Ruby、Perl、PHP等语言。下面以HBase shell为例叙述HBase的操作接口。
 
 HBase建表时需要指定表中的所有列族，下面的操作创建了名为table1的数据表，它拥有两个列族cf1和cf2：
-\begin{verbatim}
+\begin{lstlisting}
 HBase Shell > create 'table1', 'cf1', 'cf2'
-\end{verbatim}
+\end{lstlisting}
 
 在建表之后还可以增加或删除列族，也可以修改列族的配置，但需要disable整个表，即中止所有读写请求，操作结束后再enable该表：
-\begin{verbatim}
+\begin{lstlisting}
 HBase Shell > disable 'table1'
 HBase Shell > alter 'table1', {NAME => 'cf2', VERSIONS => 5}
 HBase Shell > alter 'table1', 'delete' => 'cf1'
 HBase Shell > alter 'table1', 'cf3'
 HBase Shell > enable 'table1'
-\end{verbatim}
+\end{lstlisting}
 上面的操作设置列族cf2的最大版本数为5，即每列最多存储5个版本的数据。下一行删除列族cf1及其下的所有数据。之后添加一个列族cf3。
 
 HBase提供Put、Get、Scan、Delete接口进行数据的增删查改。Put接口给某一行中插入一个单元格，需要指定行键、列族和列修饰符。时间戳则是可选的，若没有指定，则使用插入时间作为时间戳。
-\begin{verbatim}
+\begin{lstlisting}
 HBase Shell > create 'table1', 'cf1', 'cf2'
 HBase Shell > put 'table1', 'row1', 'cf1:a', 'value1'
 HBase Shell > put 'table1', 'row2', 'cf2:b', 'value2'
 HBase Shell > put 'table1', 'row1', 'cf1:b', 'value3', timestamp1
-\end{verbatim}
+\end{lstlisting}
 
 Delete接口跟Put接口相反，用来删除一个单元格的数据。由于参数相同，这里不再举例。
 
 Get接口跟Scan接口用来读取数据，其中Get接口用来读取一行内的数据，Scan接口用来读取多行的数据。Get接口只需给定一个行键，参数里的列族、列修饰符和时间戳都是可选的，会把满足条件的所有单元格都返回。Get接口能读取的范围不超过一行，即Get接口可以读取一个单元格，也可以读取一行中所有的单元格，但读取的对象都只能在同一行中。下面是一些读取示例：
-\begin{verbatim}
+\begin{lstlisting}
 HBase Shell > get 'table1', 'row1'
 HBase Shell > get 'table1', 'row1', 'cf2:a'
 HBase Shell > get 'table1', 'row1', {COLUMN => ['cf:a', 'cf:b', 'cf:c']}
 HBase Shell > get 'table1', 'row1', {COLUMN => 'cf:c', TIMESTAMP => ts1}
-\end{verbatim}
+\end{lstlisting}
 
 Scan接口则用来读取连续的多行数据。在HBase数据表中各行是按行键升序排列的，因此Scan时只需给定一个起始行键和一个终止行键（不包含），就可以返回所有的这些行。如果不给定范围，则Scan接口返回表中的所有数据。Scan接口也可指定特定的列或附加Filter来过滤无关数据。下面是一些操作示例：
-\begin{verbatim}
+\begin{lstlisting}
 HBase Shell > scan 'table1', {LIMIT => 100}
 HBase Shell > scan 'table1', {COLUMNS => ['cf1:a', 'cf1:b'], LIMIT => 10,
                               STARTROW => 'xyz'}
-\end{verbatim}
+\end{lstlisting}
 第一行读取表中的100行数据，第二行从行键大于等于'xyz'的行中读取列族为cf1，列修饰符为a或b的10行数据。
 
 之所以要区分Get和Scan接口，是因为HBase只保证单行数据的原子性，即Get接口不会返回部分更新的数据，但Scan接口没有这个保证。
@@ -103,7 +103,7 @@ Region内部先按列族分为不同的HStore，每个HStore采用LSM Tree\super
 \subsection{HBase与同类系统对比}
 在分布式键值存储中，另一个著名的系统是Cassandra\supercite{cassandra}。Cassandra是Amazon DynamoDB\supercite{DynamoDB}的开源实现，最初由Facebook开发并开源。
 
-区别于BigTable中按字典序来划分Key值空间，Cassandra中是按Key值的哈希值来划分空间的。另外Cassandra不依赖于HDFS进行存储，其数据直接由各Server存储在本地磁盘中，Server之间对数据保留多个复本。由于Key值的寻址逻辑更为简单，以及更为直接的存储实现，Cassandra相比HBase具有更优的读写性能。
+在存储实现方面，区别于BigTable中按字典序来划分Key值空间的实现，Cassandra中是按Key值的哈希值来划分空间的。另外Cassandra不依赖于HDFS进行存储，其数据直接由各Server存储在本地磁盘中，Server之间对数据保留多个复本。由于Key值的寻址逻辑更为简单，以及更为直接的存储实现，Cassandra相比HBase具有更优的读写性能。
 
 在系统架构方面，Cassandra使用去中心化的系统架构，没有Master节点，因此完全除去了单点故障的可能。所有Server组成一个环状结构，使用一致性哈希算法来分配Key值空间。一致性哈希算法使得集群可以方便地添加或删除节点。区别于HBase依赖ZooKeeper进行协作，Cassandra中的Server之间使用Gossip协议进行协作。
 
@@ -115,7 +115,93 @@ Cassandra由于不依赖HDFS之类的可靠存储层，需要自身在各Server�
 
 \section{图数据库Titan}
 图数据库是以图的形式来表示和管理数据的数据库\supercite{graph_models_survey}，与传统的关系型数据库相比，图数据库在图结构相关的查询上有更优异的性能，如多跳邻域查询、路径查询、局部聚集系数计算等。
-Titan是一个基于Blueprints 接口设计的开源图数据库，其实现了一个可插拔的存储接口，可以部署在BerkerlyDB 、HBase或Cassandra之上。相比于著名的图数据库Neo4j，Titan是完全开源免费的，其受关注度正在与日俱增。而且由于Hadoop生态系统在产业界的广泛应用，在HBase上搭建Titan，即使用Titan on HBase应对图处理需求是较为常见的选择。
+Titan是一个基于Blueprints\footnote{Blueprints, https://github.com/tinkerpop/blueprints/wiki} 接口设计的开源图数据库。Blueprints是属性图数据库的一套标准，类似于关系数据库里的JDBC，大部分图数据库都实现了Blueprints接口。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=140mm]{fig/titan-architecture.pdf}
+\caption{Titan架构图}
+\label{fig:titan_arch}
+\end{figure}
+
+Titan实现了可插拔的存储接口，可以部署在BerkerlyDB 、HBase或Cassandra之上 ，即Titan不会自己管理数据，其数据存储在底层的存储引擎之中。Titan在索引方面也提供了可插拔的接口，因为Titan只利用存储引擎实现了精确匹配的索引（类似倒排索引），更高级的索引需要依赖索引引擎来实现。Titan支持的索引引擎有ElasticSearch、Lucene等。图\ref{fig:titan_arch}是Titan架构图\footnote{图片来源：http://s3.thinkaurelius.com/docs/titan/0.5.4/images/titan-architecture-layer-diagram.svg}。
+
+相比于著名的图数据库Neo4j，Titan是完全开源免费的，其受关注度正在与日俱增。而且由于Hadoop生态系统在产业界的广泛应用，在HBase上搭建Titan，即使用Titan on HBase应对图处理需求是较为常见的选择。下面分别介绍Titan的操作接口、Titan的存储实现，以及Titan在处理大量重边时的局限性。
+
+\subsection{Titan操作接口}
+\subsubsection{Schema设置（DDL接口）}
+图的Schema包括edge labels、vertex labels和property keys等。Property key是指某种属性的Key值，如"name"、"gender"、"age"等。label是点和边的标签，可以认为是一种特殊的属性，但每个元素只能有一个label。这些都需要在使用前事先定义。
+
+定义点的label只需要给定一个label名，后续在添加点时，需要指定使用的是哪个vertex label。下面是操作示例：
+\begin{lstlisting}
+mgmt = g.getManagementSystem()
+person = mgmt.makeVertexLabel('person').make();
+mgmt.commit()
+// Create a labeled vertex
+person = g.addVertexWithLabel('person')
+// Create an unlabeled vertex
+v = g.addVertex(null)
+g.commit()
+\end{lstlisting}
+
+Edge label的定义需要给出lable名，以及边的重复度限制（Multiplicity）。
+Multiplicity 有 MULTI、 SIMPLE、 MANY2ONE、 ONE2MANY、 ONE2ONE 五种取值。其中 MULTI 表示这种类型的边可以在两点间连任意多条，即本文研究的重边。 SIMPLE表示两点间最多只能连一条这样的边，比如好友关系，如果两人之间有好友关系，则连一条这样的边，否则不连。加上 SIMPLE 类型使得两人之间不能连多条表示好友关系的边。MANY2ONE 表示每个点至多只有一条这样的出边，但是对该label的入边数目没有限制。比如表示mother关系（母子关系）的边，一个人只能有一个母亲，但一个母亲可以有多个孩子。 ONE2MANY 的意义与 MANY2ONE 相反，每个点至多只有一条这样的入边。 ONE2ONE 表示这种边是一对一的，即两个点之间如果连了一条这样的边，这两个点就不能再跟任何其它点有这样的边相连。比如夫妻关系，就是 ONE2ONE的 例子。下面是创建edge label的示例：
+\begin{lstlisting}
+mgmt = g.getManagementSystem()
+follow = mgmt.makeEdgeLabel('follow').multiplicity(Multiplicity.MULTI).make()
+mother = mgmt.makeEdgeLabel('mother').multiplicity(Multiplicity.MANY2ONE).make()
+mgmt.commit()
+\end{lstlisting}
+
+Property key的定义需要给出key的名称，以及数据类型，还有数据的基数（Cardinality）。 Cardinality有 SINGLE、 LIST、 SET 三种选择。 SINGLE就是最普通的 key-value对，即value部分只会填一个单一的值。 LIST是指value部分是一个列表，对value部分的操作将是添加或删除部分值。 SET则表示value部分是一个去重的值的集合。下面是一些操作示例：
+\begin{lstlisting}
+mgmt = g.getManagementSystem()
+birthDate = mgmt.makePropertyKey('birthDate').dataType(Long.class).cardinality(Cardinality.SINGLE).make()
+name = mgmt.makePropertyKey('name').dataType(String.class).cardinality(Cardinality.SET).make()
+sensorReading = mgmt.makePropertyKey('sensorReading').dataType(Double.class).cardinality(Cardinality.LIST).make()
+mgmt.commit()
+\end{lstlisting}
+
+\subsubsection{查询接口}
+Titan提供Gremlin\footnote{Gremlin, https://github.com/tinkerpop/gremlin/wiki}查询接口让用户可以在图上进行游走（traversal）查询。Gremlin是基于Blueprints接口实现的一门函数式图查询语言，可以把图查询表示成链式的函数调用，使得代码非常直观。
+
+下面是一个查询示例，查询 name 属性为 hercules的点在 father关系上两跳出边的点的 name属性值。
+\begin{lstlisting}
+gremlin> g.V.has('name','hercules').out('father').out('father').name
+==>saturn
+\end{lstlisting}
+
+下面是一个更丰富的查询示例，在找到name为hercules的点后，查询其father、mother出边连接的点的label，查询结果为'god'和'human'。再查询hercules节点所有battled出边所连接的点的label，查询结果是3个邻接节点的label都为monster。最后一个查询显示所有battled出边所连接的点的所有属性。每个点只有一个key值为name的属性，因此每行中只有一个key value对。
+\begin{lstlisting}
+gremlin> hercules = g.V.has('name','hercules').next()
+==>v[1536]
+gremlin> hercules.out('father','mother')*.getVertexLabel()
+==>god
+==>human
+gremlin> hercules.out('battled')*.getVertexLabel()
+==>monster
+==>monster
+==>monster
+gremlin> hercules.out('battled').map
+==>{name=nemean}
+==>{name=hydra}
+==>{name=cerberus}
+\end{lstlisting}
+
+\subsubsection{数据操作接口（DML接口）}
+用Gremlin在图中插入点和边是很方便的，下面是一个插入数据的示例：
+\begin{lstlisting}
+alice = g.addVertexWithLabel("person")
+alice.setProperty("name", "Alice")
+bob = g.addVertexWithLabel("person")
+bob.setProperty("name", "Bob")
+
+e = alice.addEdge("isFriend", bob)
+e.setProperty("since", 1991)
+g.commit()
+\end{lstlisting}
+g是一个TitanGraph对象，第1、2行往图中插入一个label为"person"的点，并设置属性"name" 为"Alice" ，第3、4行类似地插入一个表示Bob的点。第6、7行在这两个点间连一条label为 "isFriend"的边，并设置边上的属性。最后第8行需要执行commit，以将修改持久化到存储中。
+
 
 \subsection{Titan存储实现}
 在图数据库Titan中，基于BigTable模型，数据在HBase中以邻接表的形式存储，如图\ref{fig:adj_list}所示。
@@ -123,7 +209,7 @@ Titan是一个基于Blueprints 接口设计的开源图数据库，其实现了�
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=100mm]{fig/adj_list.pdf}
-\caption{Titan内部的BigTable实现}
+\caption{Titan图数据内部的BigTable表示}
 \label{fig:adj_list}
 \end{figure}
 
@@ -135,7 +221,7 @@ Titan为每个点分配了一个全局唯一的id，每个点占BigTable中的�
 \begin{center}
   列名 = 边label + 方向 + adjVid + eid
 \end{center}
-这种列名设计使得一个点的所有边先按label排序，再按方向、邻接点id、边id等排序。其优点是当要检索该点指定label的所有边时，只需要扫描邻接表的一部分。图4是一个更详细的示例。
+这种列名设计使得一个点的所有边先按label排序，再按方向、邻接点id、边id等排序。其优点是当要检索该点指定label的所有边时，只需要扫描邻接表的一部分。图\ref{fig:orginal_list}是一个更详细的示例。
 
 \subsection{图数据库Titan的局限性}
 当图中的重边数量巨大时，Titan的邻接表列数也急剧变大，这会对邻域中点和边的检索带来严重影响。
