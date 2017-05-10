@@ -222,18 +222,49 @@ g是一个TitanGraph对象，第1、2行往图中插入一个label为"person"的
 \label{fig:adj_list}
 \end{figure}
 
-Titan为每个点分配了一个全局唯一的id，每个点占BigTable中的一行，行键就是点的id。每行存储了该点相关的属性和边，它们各占一个单元格。Titan在BigTable模型中设置最大版本数为1，从而使每行中的列名与单元格一一对应，根据行键和列名可以快速定位到目标单元格，实现对边和属性内容的快速检索。
+Titan为每个点分配了一个全局唯一的id，每个点占BigTable中的一行，行键就是点的id。每行存储了该点相关的属性和边，它们各占一个单元格。边和属性数据都存储在一个列族之中，并设置该列族的最大版本数为1，从而使每行中的列修饰符与单元格一一对应，根据行键和列修饰符可以唯一定位到目标单元格，实现对边和属性内容的快速检索。
 
-在Titan中，每个属性是一个key-value对。点的属性存储在该点所在的行，每个属性占一个单元格，并以属性名key作为列名，这使得每个点的属性查询可以非常高效。
+在Titan中，每个属性是一个key-value对。点的属性存储在该点所在的行，每个属性占一个单元格，并以属性名key作为列修饰符，这使得每个点的属性查询可以非常高效。下面的代码展示了点的属性查询对应的HBase Shell操作，其中"graph\_tbl"是一张图在HBase中的数据表的表名；vid是该点的id，作为行键；边集数据和属性数据所在的列族名为"e"。
+\begin{lstlisting}
+// Gremlin Command
+v.getProperty("name")
+// HBase Shell Command
+hbase shell> get "graph_tbl", vid, "e:name"
+\end{lstlisting}
 
-每个点所在的行还存储了邻接的所有边数据，每条边占一个单元格。一条边的信息包含了邻接点、类别（label）、方向、边的唯一id，以及边上的各属性。单元格的值用来存储边上的所有属性，列名则存储边上除属性外的其它信息。在BigTable模型中，同一行的单元格按列名排序。为了方便检索，每条边所在的单元格依次以label、方向、邻接点id以及边id拼接成为列名，即
-\begin{center}
-  列名 = 边label + 方向 + adjVid + eid
-\end{center}
-这种列名设计使得一个点的所有边先按label排序，再按方向、邻接点id、边id等排序。其优点是当要检索该点指定label的所有边时，只需要扫描邻接表的一部分。图\ref{fig:orginal_list}是一个更详细的示例。
+每个点所在的行还存储了邻接的所有边数据，每条边占一个单元格。一条边的信息包含了邻接点、类别（label）、方向、边的唯一id，以及边上的各属性。单元格的值用来存储边上的所有属性，列修饰符则存储边上除属性外的其它信息。在BigTable模型中，同一行的单元格按列名排序。为了方便检索，每条边所在的单元格依次以label、方向、邻接点id以及边id拼接成为列名，即
+\begin{equation}
+  \mbox{列修饰符} = \mbox{边}label + \mbox{方向} + adjVid + eid \label{eq:cq_design}
+\end{equation}
+这种列名设计使得一个点的所有边先按label排序，再按方向、邻接点id、边id等排序。其优点是当要检索该点指定label的所有边时，只需要扫描邻接表的一部分。图\ref{fig:orginal_list}是一个更详细的示例。下面的代码展示了点的边集查询对应的HBase Shell操作。
+
+\begin{lstlisting}
+v.getEdges()
+hbase shell> get "graph_tbl", vid
+hbase shell> // filter out property results
+
+v.getEdges(Direction.OUT, "isFriend")
+hbase shell> get "graph_tbl", vid, {FILTER => "ColumnPrefixFilter('isFriend_0')"}
+
+v.getEdges(Direction.BOTH, "isFriend")
+hbase shell> get "graph_tbl", vid, {FILTER => 
+    "MultipleColumnPrefixFilter('isFriend_0', 'isFriend_1')"}
+
+v1.query().adjacent(v2).edges()
+hbase shell> get "graph_tbl", v1_id
+hbase shell> // filter results to get only edges with v2_id
+\end{lstlisting}
+
+第1行是查询点v的所有边的Titan接口，由于边数据和属性数据都存储在一行中，需要把整行的所有数据读出来（第2行），同时过滤掉属性数据（第3行）。由于点的属性数量和边的数量一般不在一个量级，因此多读入的属性数据的开销不大。
+
+第5行查询点v的所有label为"isFriend"的出边，第6行是其对应的HBase操作。由于给定了label和方向，因此可以知道列修饰符的前缀（根据式\ref{eq:cq_design}），因此从HBase中抽取的数据正好就是所需的边数据。
+
+第7行查询点v的所有label为"isFriend"的边，这里不限定方向，第8、9行是对应的HBase查询。同上一个示例，这里的边有两个方向，可以加两个前缀过滤。
+
+第11行是查询点v1和v2间的所有边，由于邻接点的id在列修饰符中的位置排在label和方向之后（根据式\ref{eq:cq_design}），因此没法给出高效的前缀查询，只能从HBase中把整行的数据抽取出来，再解析过滤出对应v2的所有边。这也正是Titan在边集查询上的局限性，下面将详细讨论。
 
 \subsection{图数据库Titan的局限性}
-当图中的重边数量巨大时，Titan的邻接表列数也急剧变大，这会对邻域中点和边的检索带来严重影响。
+Titan的邻接表列名设计（式\ref{eq:cq_design}），对于从给定点出发的查询，虽然能高效地查询出某种label的边，但当指定邻接点时，边集查询不得不在底层存储中抽取所有边的数据进行解析过滤（如上节最后的例子）。当图中的重边数量巨大时，Titan的邻接表列数也急剧变大，邻域中点和边的查询性能会急剧下降。
 
 \begin{figure}[htbp]
 \centering
@@ -242,13 +273,22 @@ Titan为每个点分配了一个全局唯一的id，每个点占BigTable中的�
 \label{fig:orginal_list}
 \end{figure}
 
-图\ref{fig:orginal_list}展示了一个富含重边的场景，为方便展示省略了边的方向。v1只有v2和v3两个邻接点，其中与v2有两种label的边，与v3有一种label的边。虽然邻接的点数不多，但v1与邻接点都有数量巨大的重边。由于邻接表存储的是每条边的信息，当要查询v1的所有邻接点集（即v1、v2）时，不得不遍历一次v1的所有边，即遍历整个邻接表。当重边数量巨大时，这是大量的无谓开销。
+图\ref{fig:orginal_list}展示了富含重边时邻接表的示例，为方便展示省略了边的方向。v1只有v2和v3两个邻接点，其中与v2有两种label的边，与v3有一种label的边。虽然邻接的点数不多，但v1与邻接点都有数量巨大的重边。由于邻接表存储的是每条边的信息，当要查询v1的所有邻接点集（即v2、v3）时，不得不遍历一次v1的所有边，即遍历整行数据。类似地，如果要查询v1与v2的所有边时，由于这些边存储位置不相邻，也只能遍历整行数据再做过滤。
 
 为了规避上述情形，我们可以换一种列名设计来优化邻域点集查询，比如让邻接表先按邻接点id排序，令
 \begin{center}
   列名 = adjVid + 边label + 方向 + eid
 \end{center}
-这样当发现一个邻接点时，可以跳过相同邻接点的所有边，不用再遍历整个邻接表。然而，面对label相关的查询时又会面临同样的问题，比如查询该点总共有几种label的边，仍需要遍历该点的整个邻接表。因此，改变邻接表的列名设计并不能解决问题，本质原因是邻接表存储了所有的边集。
+则邻接表变为图\ref{fig:redesign_list}所示。此时优先按邻接的点来排序，其次再按边label进行排序。因此邻接点为v2的边现在都排在了一起，可以通过一次scan全部读取出来，不需要再读取整行数据。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=150mm]{fig/redesign_list.pdf}
+\caption{重新设计的列修饰符对应的邻接表示例}
+\label{fig:redesign_list}
+\end{figure}
+
+这样在查询邻接点时，还可以跳过相同邻接点的所有边，不用再遍历整个邻接表。然而，面对label相关的查询时又会面临同样的问题，比如查询该点总共有几种label的边，或者查询该点某种label的边，仍会面临原来的情形，需要遍历该点的整个邻接表。因此，改变邻接表的列名设计并不能解决问题，本质原因是邻接表存储了所有的边集。
 
 另一方面，Titan为加快数据访问设计了缓存，存储最近访问的点及其邻接表内容。如果图中各点的重边都很多，则缓存空间被大量的重边占满。由于是重边，这些边中只有为数不多的邻接点。在做邻域点集相关查询时就会极大增加缓存的失效率。
 面对富含重边的属性图，把所有边集都存在邻接表中是Titan性能受损的原因所在。
