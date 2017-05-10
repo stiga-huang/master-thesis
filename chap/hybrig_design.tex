@@ -24,7 +24,7 @@ HybriG将图数据分开存储在Titan和HBase中。具体地，如果两点之�
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=150mm]{fig/storage_layer.pdf}
-\caption{HybriG存储示例。左图为原始数据的属性图，右图为数据在Titan和HBase边表的存储情况。}
+\caption[HybriG存储示例]{HybriG存储示例。左图为原始数据的属性图，右图为数据在Titan和HBase边表的存储情况。}
 \label{fig:storage_layer}
 \end{figure}
 
@@ -35,7 +35,7 @@ HybriG将图数据分开存储在Titan和HBase中。具体地，如果两点之�
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=100mm]{fig/merge_edges.pdf}
-\caption{合并同label重边示意。左图为实际数据图，右图为Titan中的存储示意图。无向边中的重边是指端点对应相同的两条或多条边，有向边中的重边是指起点和终点对应相同的两条或多条边。}
+\caption[合并同label重边示意图]{合并同label重边示意。左图为实际数据图，右图为Titan中的存储示意图。无向边中的重边是指端点对应相同的两条或多条边，有向边中的重边是指起点和终点对应相同的两条或多条边。}
 \label{fig:merge_edges}
 \end{figure}
 
@@ -94,7 +94,7 @@ $$HybriG\_Edge = TitanEdgeID + HBaseRowData$$
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=150mm]{fig/curr_list.pdf}
-\caption{HybriG在HBase中的数据表分为两张，左边为Titan转化成的数据表，右边为边表。当属性图富含重边时，Titan数据表不被影响，边表将是一张高而窄的表。}
+\caption[HybriG在HBase中的数据表]{HybriG在HBase中的数据表分为两张，左边为Titan转化成的数据表，右边为边表。当属性图富含重边时，Titan数据表不被影响，边表将是一张高而窄的表。}
 \label{fig:curr_list}
 \end{figure}
 
@@ -163,7 +163,7 @@ Data Loder模块负责图数据的导入，包括点的导入和边的导入。�
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=60mm]{fig/insert_steps.pdf}
-\caption{边的数据导入分三步：①更新Titan数据；②提交Titan更改即graph.commit()；③将数据插入HBase边表中}
+\caption[插入边数据的三个阶段]{边的数据导入分三步：①更新Titan数据；②提交Titan更改即graph.commit()；③将数据插入HBase边表中}
 \label{fig:insert_steps}
 \end{figure}
 
