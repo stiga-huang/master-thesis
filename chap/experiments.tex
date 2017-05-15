@@ -114,7 +114,8 @@ $$\left | \left \{ (u,w):u,w\in{N_v},w\in{N_u} \right \} \right | = \sum_{u\in{N
 图\ref{fig:get_edges}展示的是两种系统的查询时间，以及查询耗时中具体的时间组成，其中HybriG的查询时间分为Titan中的查询耗时和HBase中的查询耗时两部分。当边集规模增大时，HybriG在Titan中的查询耗时并没有显著增加，而在HBase边表中的查询耗时增长的幅度也没有传统方案中的Titan大。
 
 \section{边数据的导入速度}
-关于边的数据导入速度，我们对不同规模的图进行了测试。对比直接将图存储在Titan以及将图存储在HybriG的两种方案。我们基于MapReduce\supercite{mapreduce}开发了分布式的导入程序。表\ref{edge_load_perf}是边数据导入时间的统计：
+关于边的数据导入速度，我们对不同规模的图进行了测试，对比直接将图存储在Titan以及将图存储在HybriG的两种方案。由于点集数据都存储在Titan中，两种方案在点集数据导入上的性能是接近的，下面展示的是边集数据的导入速度。我们基于MapReduce\supercite{mapreduce}开发了分布式的导入程序，将待导入的边集数据均分，之后在各个机器上进行导入。在HybriG中，边集数据导入分为更新Titan和更新HBase两个步骤。在更新HBase时我们使用HBase的Bulk Loading\footnote{HBase Bulk Loading, http://hbase.apache.org/book.html\#arch.bulk.load}技术来进行加速。
+表\ref{edge_load_perf}是边数据导入时间的统计：
 \begin{table}[!hbp]
 \begin{tabular}{|c|c|c|c|c|c|}
 \hline
@@ -130,7 +131,8 @@ $$\left | \left \{ (u,w):u,w\in{N_v},w\in{N_u} \right \} \right | = \sum_{u\in{N
 \caption{边集数据的批量导入耗时}
 \label{edge_load_perf}
 \end{table}
-可以看到，在所有测试用图中，HybriG对边集数据的导入拥有更高的速度。这主要有两方面的原因：一是HybriG对HBase边表的数据导入使用了HBase的Bulk Loading技术。二是Titan对新增的点和边都会分配一个全局唯一的id（这也是Titan没有实现HBase Bulk Loading的原因），HybriG大大减小了自身Titan中的边数目，从而节省了id分配的时间开销。
+
+可以看到，在所有测试用图中，HybriG对边集数据的导入拥有更高的速度。这主要有两方面的原因：一是HybriG对HBase边表的数据导入使用了HBase的Bulk Loading技术，可以直接从MapReduce生成HBase底层的HFile，绕过了HBase RegionServer数据写入的开销。而Titan的API实际转化为HBase的API，仍需要通过RegionServer进行写入，没有使用Bulk Loading的方案。二是Titan对新增的点和边都会分配一个全局唯一的id（这也是Titan没有实现HBase Bulk Loading的重要原因），每一个负责数据导入的Worker（Titan Client）需要获得全局唯一的一个ID Block，等待协调分配的开销会拖慢Worker的进度。HybriG大大减小了自身Titan中的边数目，从而节省了id分配的时间开销。
 
 
 
