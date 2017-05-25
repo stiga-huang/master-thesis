@@ -111,7 +111,7 @@ Cassandra与HBase最大的区别在于CAP\supercite{CAP}理论上的取舍。CAP
 
 HBase和Cassandra都是分布式的系统，在部分机器宕机或失联时系统仍能工作，都是满足Partition tolerance的。它们的区别在于Consistency和Availability的取舍上。
 HBase 在有RegionServer宕机时，需要让相应的WAL和StoreFile在其它RegionServer上进行恢复，在恢复期间对应的Region是无法提供服务的，因此不满足Availability。但也正得益于这种恢复机制，HBase中的数据会一直处于一致的状态，即HBase满足Consistency。
-Cassandra由于不依赖HDFS之类的可靠存储层，需要自身在各Server间对数据做多复本存储。而读请求是可以由单独一台Server来响应地，不需要等待各Server间的同步，因此也就没有了一致性的保证，按来了读写的高性能。
+Cassandra由于不依赖HDFS之类的可靠存储层，需要自身在各Server间对数据做多复本存储。而读请求是可以由单独一台Server来响应地，不需要等待各Server间的同步，因此也就没有了一致性的保证，换来了读写的高性能。
 
 \section{图数据库Titan}
 图数据库是以图的形式来表示和管理数据的数据库\supercite{graph_models_survey}，与传统的关系型数据库相比，图数据库在图结构相关的查询上有更优异的性能，如多跳邻域查询、路径查询、局部聚集系数计算等。
@@ -247,7 +247,7 @@ v.getEdges(Direction.OUT, "isFriend")
 hbase shell> get "graph_tbl", vid, {FILTER => "ColumnPrefixFilter('isFriend_0')"}
 
 v.getEdges(Direction.BOTH, "isFriend")
-hbase shell> get "graph_tbl", vid, {FILTER => 
+hbase shell> get "graph_tbl", vid, {FILTER =>
     "MultipleColumnPrefixFilter('isFriend_0', 'isFriend_1')"}
 
 v1.query().adjacent(v2).edges()
@@ -259,9 +259,9 @@ hbase shell> // filter results to get only edges with v2_id
 
 第5行查询点v的所有label为"isFriend"的出边，第6行是其对应的HBase操作。由于给定了label和方向，因此可以知道列修饰符的前缀（根据式\ref{eq:cq_design}），因此从HBase中抽取的数据正好就是所需的边数据。
 
-第7行查询点v的所有label为"isFriend"的边，这里不限定方向，第8、9行是对应的HBase查询。同上一个示例，这里的边有两个方向，可以加两个前缀过滤。
+第8行查询点v的所有label为"isFriend"的边，这里不限定方向，第9、10行是对应的HBase查询。同上一个示例，这里的边有两个方向，可以加两个前缀过滤。
 
-第11行是查询点v1和v2间的所有边，由于邻接点的id在列修饰符中的位置排在label和方向之后（根据式\ref{eq:cq_design}），因此没法给出高效的前缀查询，只能从HBase中把整行的数据抽取出来，再解析过滤出对应v2的所有边。这也正是Titan在边集查询上的局限性，下面将详细讨论。
+第12行是查询点v1和v2间的所有边，由于邻接点的id在列修饰符中的位置排在label和方向之后（根据式\ref{eq:cq_design}），因此没法给出高效的前缀查询，只能从HBase中把整行的数据抽取出来，再解析过滤出对应v2的所有边。这也正是Titan在边集查询上的局限性，下面将详细讨论。
 
 \subsection{图数据库Titan的局限性}
 Titan的邻接表列名设计（式\ref{eq:cq_design}），对于从给定点出发的查询，虽然能高效地查询出某种label的边，但当指定邻接点时，边集查询不得不在底层存储中抽取所有边的数据进行解析过滤（如上节最后的例子）。当图中的重边数量巨大时，Titan的邻接表列数也急剧变大，邻域中点和边的查询性能会急剧下降。
