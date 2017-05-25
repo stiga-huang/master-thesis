@@ -30,7 +30,7 @@ HybriG将图数据分开存储在Titan和HBase中。具体地，如果两点之�
 
 图 \ref{fig:storage_layer}是数据存储的一个示例，左边是实际要存储的图数据， e1、e2、…、en都是label为“交易”的重边，表示两人的所有交易记录。右边是数据在Titan和HBase中的存储情况。Titan中只存一条label为“交易”的边，该边有一个属性记录实际的边数。利用这条边的id作为前缀，拼接上重边的主键（交易的时间戳）作为HBase的行键，将每条边的数据都存入对应的单元格中。
 
-本文在引言中提到了一种避免产生重边的建模方式，即将所有同label的重边合并为一条边来表示，边上存储这些重边的所有数据。HybriG架构与其有相似之处，但本质区别是边集元素的数据粒度仍是每条重边，不会将多条重边的数据作为一个单元来处理。在HybriG中每条边的数据独占HBase边表中的一行，因此每条边的相关操作都会更加高效。得益于HBase的高可扩展性，这种存储方式的性能也不会受制于数据规模的增长。而前述建模方式将所有重边的数据合并在一条边中存储，当重边量级巨大时，对每条边的操作势必更加低效。
+本文在引言中提到了一种避免产生重边的建模方式，即将所有同label的重边合并为一条边来表示，边上存储这些重边的所有数据。HybriG架构与其有相似之处，但本质区别是边集元素的数据粒度仍是每条重边，不会将多条重边的数据作为一个单元来处理。图数据库Titan中将一条边作为一个存储单元，如果将多条重边的数据合并在一条边中存储，会使边的单位数据量骤增。每次读写原图中一条边时，需要把合并的重边数据都读出来进行读写，势必带来性能的低效。在HybriG中每条重边的数据独占HBase边表中的一行，各重边的数据是独立存储的，因此每条重边的相关操作都会更加高效。得益于HBase的高可扩展性，这种存储方式的性能也不会受制于数据规模的增长。而前述建模方式将所有重边的数据合并在一条边中存储，当重边量级巨大时，将难以水平扩展。
 
 \begin{figure}[htbp]
 \centering
@@ -39,7 +39,7 @@ HybriG将图数据分开存储在Titan和HBase中。具体地，如果两点之�
 \label{fig:merge_edges}
 \end{figure}
 
-HybriG采用的是合并同label的重边，而不是所有的重边，这仍是基于数据粒度的考虑。图\ref{fig:merge_edges}是合并相同label重边后Titan的图示例（在HBase边表中的重边数据未显示）。在实际应用场景中，经常需要根据具体的关系种类（label）来进行邻域点集查找，对于具体边数据的查询也常按label进行。因此合并相同label的重边设计可以使很多查询在Titan中就得到满足，不需要再涉及HBase边表。
+HybriG采用的是合并两点间同label的重边，而不是两点间所有的重边，这仍是基于数据粒度的考虑。图\ref{fig:merge_edges}是合并相同label重边后Titan的图示例（在HBase边表中的重边数据未显示）。在实际应用场景中，经常需要根据具体的关系种类（label）来进行邻域点集查找，对于具体边数据的查询也常按label进行。因此合并相同label的重边设计可以在图数据库Titan中保留label信息，使很多查询在Titan中就能得到满足，不需要再涉及HBase边表。
 
 
 \section{Query Adapter}
@@ -47,11 +47,34 @@ Query Adapter模块将图查询转化为对应Titan和HBase的查询，再将结
 \subsection{查询设计}
 我们在HybriG架构上实现了基本图查询接口，暴露给上层应用的仍是一张属性图。基本的图查询接口可分为如下几类：
 \begin{itemize}
-	\item 以点为中心的查询：获取某点邻接的点、获取某点的属性、获取某点邻接的边等；
-	\item 以边为中心的查询：获取某条边的端点、获取某条边的属性等；
-	\item 从图中直接查询：查询符合某种条件的元素（点/边），其中的条件可以是label、限定返回集大小（limit）等。
+	\item 以点为中心的查询（如图\ref{fig:query_a}）：获取某点邻接的点、获取某点的属性、获取某点邻接的边等；
+	\item 以边为中心的查询（如图\ref{fig:query_b}）：获取某条边的端点、获取某条边的属性等；
+	\item 从图中直接查询（如图\ref{fig:query_c}）：查询符合某种条件的元素（点/边），其中的条件可以是label、限定返回集大小（limit）等。
 \end{itemize}
-更详细的属性图查询接口，可以查看Blueprints中的定义。
+
+\begin{figure}
+\begin{subfigure}[b]{.3\linewidth}
+\centering
+\includegraphics[width=50mm]{fig/graph_query1.pdf}
+\subcaption{邻域点集查询}\label{fig:query_a}
+\end{subfigure}
+\begin{subfigure}[b]{.3\linewidth}
+\centering
+\includegraphics[width=50mm]{fig/graph_query2.pdf}
+\subcaption{给定边上的信息查询}\label{fig:query_b}
+\end{subfigure}
+\begin{subfigure}[b]{.3\linewidth}
+\centering
+\includegraphics[width=40mm]{fig/graph_query3.pdf}
+\subcaption{图中查询名字为Alice的点}\label{fig:query_c}
+\end{subfigure}
+\caption[图查询示例]{图查询示例，查询结果以高亮标明。图(\subref{fig:query_a})是以点为中心的查询示例。图(\subref{fig:query_b})是以边为中心的查询示例。图(\subref{fig:query_c})是直接在图中查询的示例，查询name属性为Alice的点，查询语句为 g.V.has('name','Alice')}\label{fig:graph_queries}
+\end{figure}
+
+
+图\ref{fig:graph_queries}是一些查询的示例，图中阴影部分是查询结果。更详细的属性图查询接口，可以查看Blueprints中的定义。
+
+
 
 除了基本的属性图查询接口，HybriG还提供了重边的统计信息查询。比如查询两点间某种label的重边具体的边数、或者查询某个属性上的聚集信息（如MIN、MAX、AVG、SUM等），可以根据业务需要来定制具体统计的信息。比如通话关系所表示的边中，有记录通话开始时间戳的属性。可以设置HybriG统计该类重边在该属性的最小值，从而可以查询两人最早的通话发生时间。在HybriG架构中，这些统计信息存储在Titan中的边上，因而可以快速返回结果，无需再对具体的边数据（存在HBase边表中）进行统计。
 
