@@ -11,8 +11,11 @@
 \section{邻域点集相关查询}
 邻域点集查询是指查询给定点的邻接点集。许多图查询基于邻域点集查询实现，如k-hop点集查询、局部聚集系数查询、广度优先搜索等。下面叙述两个基于邻域点集查询的图查询实验。
 \subsection{k-hop点集查询}
-k-hop点集查询即查询给定点在k跳能到达的点集。实验在测试图中随机抽取100个点作为起点，查询它们的多跳邻域点集，测试它们的平均查询时间。同时又对小邻域（邻域点数小于5）的点集和大邻域（邻域点数大于20）的点集进行了同样的实验。表\ref{khop_random}、表\ref{khop_min}、表\ref{khop_max} 是Titan与HybriG的性能表现。
-\begin{table}[!hbp]
+k-hop点集查询即查询给定点在k跳能到达的点集。实验在测试图中随机抽取100个点作为起点，查询它们的多跳邻域点集，测试它们的平均查询时间。同时又对小邻域（邻域点数小于5）的点集和大邻域（邻域点数大于20）的点集进行了同样的实验。表\ref{khop_res} 是Titan与HybriG的性能表现。
+
+\begin{table}
+\centering
+\begin{subtable}{1\textwidth}
 \centering
 \begin{tabular}{|c|c|c|c|c|}
 \hline
@@ -25,9 +28,11 @@ HybriG&4.25&18.73&34.69&99.78\\
 \end{tabular}
 \caption{随机选100个点的k-hop查询平均耗时（毫秒）}
 \label{khop_random}
-\end{table}
+\end{subtable}
 
-\begin{table}[!hbp]
+\vspace{3mm}
+
+\begin{subtable}{1\textwidth}
 \centering
 \begin{tabular}{|c|c|c|c|c|}
 \hline
@@ -40,9 +45,11 @@ HybriG&2.08&7.79&19.88&52.45\\
 \end{tabular}
 \caption{随机选100个小邻域点的k-hop查询平均耗时（毫秒）}
 \label{khop_min}
-\end{table}
+\end{subtable}
 
-\begin{table}[!hbp]
+\vspace{3mm}
+
+\begin{subtable}{1\textwidth}
 \centering
 \begin{tabular}{|c|c|c|c|c|}
 \hline
@@ -55,7 +62,12 @@ HybriG&3.52&14.49&39.98&163.15\\
 \end{tabular}
 \caption{随机选100个大邻域点的k-hop查询平均耗时（毫秒）}
 \label{khop_max}
+\end{subtable}
+
+\caption{HybriG的k-hop查询耗时}
+\label{khop_res}
 \end{table}
+
 可以看到，随着跳数的增加，两系统的查询时间都呈指数增长。HybriG不管在1跳的初始值还是在增长的倍数上都远优于Titan。正如2.3节分析的，对某个点的邻域点集查询需要遍历该点的邻接表。当图中的重边数目巨大时，Titan受累于其庞大的邻接表，对邻域点集的查询速度大大降低。而HybriG由于极大简化了存储在Titan中的边数目，使得邻接表的数据量大大缩小，从而降低了邻接表的遍历耗时。
 
 \subsection{局部聚集系数计算}
