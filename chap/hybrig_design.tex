@@ -68,7 +68,7 @@ Query Adapter模块将图查询转化为对应Titan和HBase的查询，再将结
 \includegraphics[width=40mm]{fig/graph_query3.pdf}
 \subcaption{图中查询名字为Alice的点}\label{fig:query_c}
 \end{subfigure}
-\caption[图查询示例]{图查询示例，查询结果以高亮标明。图(\subref{fig:query_a})是以点为中心的查询示例。图(\subref{fig:query_b})是以边为中心的查询示例。图(\subref{fig:query_c})是直接在图中查询的示例，查询name属性为Alice的点，查询语句为 g.V.has('name','Alice')}\label{fig:graph_queries}
+\caption[图查询示例]{图查询示例，查询结果以高亮标明。图(\subref{fig:query_a})是以点为中心的查询示例。图(\subref{fig:query_b})是以边为中心的查询示例。图(\subref{fig:query_c})是直接在图中查询的示例，查询name属性为Alice的点}\label{fig:graph_queries}
 \end{figure}
 
 
@@ -83,9 +83,17 @@ Query Adapter模块将图查询转化为对应Titan和HBase的查询，再将结
 \subsection{查询实现}
 查询的实现可分为两部分，一部分只依赖于Titan中的数据，另一部分需要联合Titan 和 HBase边表的数据来返回结果。下面分别叙述。
 \subsubsection{仅依赖Titan数据的查询}
-在HybriG架构中，点集和各点的邻接信息都存储在Titan中，因此只与点集相关的查询都可以直接转换为对Titan的查询，如点上属性的查询、查询给定点的邻域点集、在图中查询某种label的点等。
+在HybriG架构中，点集和各点的邻接信息都存储在Titan中，因此只与点集相关的查询都可以直接转换为对Titan的查询，如点上属性的查询、查询给定点的邻域点集、在图中查询满足某种条件的点等。
 
-对于重边的统计信息查询，其需要的统计结果都已在Titan的边中存储，故可以直接转换为对Titan边上的属性值查询。具体实现中需要维护一个映射关系作为元信息，以得知一个统计信息对应Titan边上的哪个属性。
+Titan的边上存储了重边的一些统计信息，比如两点间该种类型的重边具体有几条，比如这些重边上某个属性的均值、最大最小值等，具体预存哪些统计信息是可由业务逻辑定制的。图\ref{fig:stats_query}是一个存储示例。对于重边的统计信息查询，其需要的统计结果都已在Titan的边中存储，故可以直接转换为对Titan边上的属性值查询。具体实现中需要维护一个映射关系作为元信息，以得知一个统计信息对应Titan边上的哪个属性。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=150mm]{fig/stats_query.pdf}
+\caption[HybriG中的统计信息示例]{在HybriG架构中，重边的统计信息存储于Titan中边的属性上。关于重边统计信息的一些查询可以直接在Titan中查询得到结果，不需要再遍历HBase中的边表。HybriG保证Titan和HBase中数据的最终一致性。}
+\label{fig:stats_query}
+\end{figure}
+
 \subsubsection{关联Titan和HBase数据的查询}
 当查询具体的边数据时，就需要关联Titan和HBase来实现查询。在HybriG架构中，
 $$HybriG\_Edge = TitanEdgeID + HBaseRowData$$
@@ -181,7 +189,7 @@ Data Loder模块负责图数据的导入，包括点的导入和边的导入。�
 \subsection{数据一致性}
 在Titan的接口设计中，对图(graph)的初次操作将自动打开一个事务，执行 graph.commit() 时该事务提交，将事务里的修改持久化到底层存储中，Titan的事务保证了自身数据的一致性。HybriG架构由于把边数据的存储分开在Titan 和 HBase上，需要保证Titan和HBase上数据的一致性。比如Titan上关于重边的统计信息跟HBase边表的一致性，或者HBase边表里各行行键的边id部分跟Titan里的一致性。由于实现强一致性的代价过高，本架构保证的是Titan和HBase数据的最终一致性\supercite{eventually_consistent}，即系统保证在经过错误恢复后，数据最终会达到一致的状态。最终一致性足以满足应用场景的需求。
 
-由于只有边集数据是跨Titan和HBase存储的，下面讨论的都是边数据的导入。图\ref{fig:insert_steps}演示了边数据导入的三个步骤，第①步对应前述算法3中的第1~7行，更新Titan数据；第②步对应第8行，提交修改；第③步对应第9~11行，利用边id将边数据插入HBase边表中。对数据的持久化修改是第②③步，数据会出现不一致的原因是②③并不是原子的。如果②成功但是③失败了，即成功持久化了对Titan数据的修改，但对HBase边表的修改却失败了，则两方的数据出现不一致。失败的原因是多种多样的，比如程序内存溢出（Out of Memory）、网络中断、硬件故障等。
+由于只有边集数据是跨Titan和HBase存储的，下面讨论的都是边数据的导入。图\ref{fig:insert_steps}演示了边数据导入的三个步骤，第①步对应前述算法3中的第1-7行，更新Titan数据；第②步对应第8行，提交修改；第③步对应第9-11行，利用边id将边数据插入HBase边表中。对数据的持久化修改是第②③步，数据会出现不一致的原因是②③并不是原子的。如果②成功但是③失败了，即成功持久化了对Titan数据的修改，但对HBase边表的修改却失败了，则两方的数据出现不一致。出现②成功但是③失败的情况是多种多样的，比如程序在完成②之后遭遇内存溢出（Out of Memory）、网络中断、硬件故障等。
 
 \begin{figure}[htbp]
 \centering
