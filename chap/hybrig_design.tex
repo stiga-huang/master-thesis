@@ -4,7 +4,9 @@
 \chapter{HybriG系统设计} \label{chap:design}
 \section{HybriG的系统架构概述}
 为了更好地应对含有大量重边的属性图应用场景，规避传统图数据库的局限性，本文提出了一种复合存储架构HybriG。
-HybriG将图的连接信息和点集的属性数据存储在Titan中，边集的所有属性数据则直接存储在HBase中。由于HybriG架构基于Titan和 HBase实现存储，而Titan的数据本身也存储在HBase中，为了方便表述以及避免混淆，下文中的HBase指的都是不包含Titan数据表的部分。Titan在HBase中的数据表直接用 Titan 代称。
+HybriG将图的连接信息和点集的属性数据存储在Titan中，边集的所有属性数据则直接存储在HBase中，从而能维护精简的链接表，提供高效的图查询。HybriG架构应用在明略数据\footnote{明略数据，http://www.mininglamp.com }的关联数据分析平台SCOPA\footnote{SCOPA，http://www.mininglamp.com/solutions/scopa }中，提供属性图数据的查询与存储，在实践中验证了该架构的优越性。
+
+由于HybriG架构基于Titan和 HBase实现存储，而Titan的数据本身也存储在HBase中，为了方便表述以及避免混淆，下文中的HBase指的都是不包含Titan数据表的部分。Titan 在 HBase 中的数据表直接用 Titan 代称。
 
 \begin{figure}[htbp]
 \centering
@@ -94,7 +96,7 @@ Titan的边上存储了重边的一些统计信息，比如两点间该种类型
 \label{fig:stats_query}
 \end{figure}
 
-\subsubsection{关联Titan和HBase数据的查询}
+\subsubsection{关联Titan和HBase数据的查询} \label{chap:edge_query}
 当查询具体的边数据时，就需要关联Titan和HBase来实现查询。在HybriG架构中，
 $$HybriG\_Edge = TitanEdgeID + HBaseRowData$$
 上式表示每条边对象的两部分组成，所有边集数据存储在HBase的边表中，每条边的数据占据一行，存储其所有属性，该行的行键是Titan中对应的边id拼接上该边的主键值。因此查询某条重边的数据，需要先在Titan中找到对应边的id，再在HBase边表中找到对应行的数据。
@@ -123,13 +125,25 @@ $$HybriG\_Edge = TitanEdgeID + HBaseRowData$$
 \subsubsection{邻域点集相关查询的优势}
 
 \begin{figure}[htbp]
+\begin{subfigure}[b]{1\linewidth}
+\centering
+\includegraphics[width=150mm]{fig/original_list.pdf}
+\subcaption{Titan存储重边时在HBase中的数据表。}\label{fig:original_list}
+\end{subfigure}
+
+\vspace{3mm}
+
+\begin{subfigure}[b]{1\linewidth}
 \centering
 \includegraphics[width=150mm]{fig/curr_list.pdf}
-\caption[HybriG在HBase中的数据表]{HybriG在HBase中的数据表分为两张，左边为Titan转化成的数据表，右边为边表。当属性图富含重边时，Titan数据表不被影响，边表将是一张高而窄的表。}
-\label{fig:curr_list}
+\subcaption{HybriG存储重边时在HBase中的数据表分为两张，左边为Titan转化成的数据表，右边为边表。}\label{fig:curr_list}
+\end{subfigure}
+
+\caption[HybriG与Titan存储重边时的HBase数据表对比]{HybriG与Titan存储重边时的HBase数据表对比 ，当属性图富含重边时，用Titan存储重边的链接表将横向膨胀，Titan数据表将是一张浅而宽的表。而当属性图富含重边时，HybriG中Titan数据表将不被影响，数据的膨胀体现在HBase边表中，边表将是一张高而窄的表。}
+\label{fig:adj_list_compare}
 \end{figure}
 
-为了解释HybriG在图查询上的优势，图\ref{fig:curr_list}展示了HybriG在HBase中的表结构，包括Titan自身的HBase数据表和HybriG特殊设计的边表。当属性图的重边数量爆炸性增长时，Titan的数据表并不会被影响，因为两点间同label的边至多只会存在一条，每个点的邻接表列数仍为不同label邻接的点数。另外，Titan中的边只存放统计信息，因此每个单元格（即每条边）的数据量实际很小。面对含有大量重边的属性图，各点的邻接表仍保持了列数和数据量上的精简。即使面对邻域点集查询的全表扫描，也能提供优异的性能。
+为了解释HybriG在图查询上的优势，图\ref{fig:adj_list_compare}展示了HybriG与Titan在存储重边时的数据表。HybriG在HBase中的表结构包括Titan自身的HBase数据表和HybriG特殊设计的边表。当属性图的重边数量爆炸性增长时，HybriG的邻接表并不会被影响，因为两点间同label的边至多只会存在一条，每个点的邻接表列数仍为不同label邻接的点数。另外，HybriG中Titan的边只存放统计信息，因此每个单元格（即每条边）的数据量实际很小。面对含有大量重边的属性图，各点的邻接表仍保持了列数和数据量上的精简。即使面对邻域点集查询的全表扫描，也能提供优异的性能。
 
 另一方面，得益于邻接表的精简，Titan的缓存因此可以存放更多点集数据。对于邻域点集相关查询，如多跳邻域（k-hop）查询、路径查询、局部聚集系数计算等，具体的实现往往由多个基本的邻域点集查询组成，缓存的命中率就显得尤为重要。传统的解决方案中使用Titan存储所有的重边，使得缓存中只能存储少量点集的数据，大部分空间被边集数据占据，而具体的边集数据在查询中并不相关。在HybriG架构中，Titan的缓存能充分保留更多的点集数据，从而进一步提高邻域点集相关查询的缓存命中率。
 综上，HybriG对邻域点集相关的查询具有很好的表现，后续的实验结果将展示具体的数据。
@@ -145,7 +159,8 @@ HybriG架构在边集统计信息的查询或计算上会有很大优势。在Hy
 \section{Data Loader}
 Data Loder模块负责图数据的导入，包括点的导入和边的导入。在HybriG架构中，点集数据都存储在Titan中，故点集数据导入直接在Titan上完成。边集数据虽然存储在HBase中，但Titan中的对应边上存储了重边的统计信息，因此需要同时更新Titan 和 HBase，以保证二者数据的一致。下面详述边的数据导入，以及如何保证Titan和HBase的数据一致性。
 
-\subsection{边数据的高效导入}
+\subsection{边数据的高效导入} \label{chap:insert_edge}
+
 在HybriG架构中，边的插入既要更新Titan，又要更新HBase中的边表。对于给定label的一条边数据，首先要查看Titan中两点间是否已有一条边表示这样的关系存在。若这样的边不存在，则将其创建。然后更新Titan边上的统计信息，再利用其边id将具体边的数据存入HBase中。算法\ref{alg:insert_one_edge}展示了上述逻辑。第1行查询Titan中该label的边，由于至多只有一条，故可用limit(1)加速。第2-4行若这样的边不存在，则在Titan中添加一条边。第5行根据要插入的边数据来更新Titan中边上的统计信息。第6行提交对Titan的所有修改。第7行将边数据写入HBase边表中，行键为e.id拼接上边的主键。
 \begin{algorithm}
 \caption{插入一条边的伪代码}
@@ -186,7 +201,7 @@ Data Loder模块负责图数据的导入，包括点的导入和边的导入。�
 
 在算法\ref{alg:insert_batch_edges}中，第1到8行是对Titan的更新，将两点间同label的重边作为一批处理，共享了对Titan的操作，从而平摊了额外的开销。另外第9到11行是对HBase边表的多次put操作，可以使用HBase的Bulk Loading 技术来进行加速。
 
-\subsection{数据一致性}
+\subsection{数据一致性} \label{chap:consistence}
 在Titan的接口设计中，对图(graph)的初次操作将自动打开一个事务，执行 graph.commit() 时该事务提交，将事务里的修改持久化到底层存储中，Titan的事务保证了自身数据的一致性。HybriG架构由于把边数据的存储分开在Titan 和 HBase上，需要保证Titan和HBase上数据的一致性。比如Titan上关于重边的统计信息跟HBase边表的一致性，或者HBase边表里各行行键的边id部分跟Titan里的一致性。由于实现强一致性的代价过高，本架构保证的是Titan和HBase数据的最终一致性\supercite{eventually_consistent}，即系统保证在经过错误恢复后，数据最终会达到一致的状态。最终一致性足以满足应用场景的需求。
 
 由于只有边集数据是跨Titan和HBase存储的，下面讨论的都是边数据的导入。图\ref{fig:insert_steps}演示了边数据导入的三个步骤，第①步对应前述算法3中的第1-7行，更新Titan数据；第②步对应第8行，提交修改；第③步对应第9-11行，利用边id将边数据插入HBase边表中。对数据的持久化修改是第②③步，数据会出现不一致的原因是②③并不是原子的。如果②成功但是③失败了，即成功持久化了对Titan数据的修改，但对HBase边表的修改却失败了，则两方的数据出现不一致。出现②成功但是③失败的情况是多种多样的，比如程序在完成②之后遭遇内存溢出（Out of Memory）、网络中断、硬件故障等。

@@ -9,7 +9,7 @@
 实验环境为5台服务器组成的集群，每台机器安装Ubuntu14.04操作系统，物理配置均为一个Intel Xeon E3-1220 (3.10GHz)处理器、16GB内存、一个1Gbps网卡及一个4TB SATA接口硬盘。HBase部署在这5台机器上，每台机器的RegionServer设置最大堆内存为4GB。其中HBase版本为1.0.1.1，Titan版本为0.5.4。
 
 \section{邻域点集相关查询}
-邻域点集查询是指查询给定点的邻接点集。许多图查询基于邻域点集查询实现，如k-hop点集查询、局部聚集系数查询、广度优先搜索等。下面叙述两个基于邻域点集查询的图查询实验。
+邻域点集查询是指查询给定点的邻接点集，即查询其所有邻居结点。许多图查询基于邻域点集查询实现，如k-hop点集查询、局部聚集系数查询、广度优先搜索等。下面叙述两个基于邻域点集查询的图查询实验。
 \subsection{k-hop点集查询}
 k-hop点集查询即查询给定点在k跳能到达的点集。实验在测试图中随机抽取100个点作为起点，查询它们的多跳邻域点集，测试它们的平均查询时间。同时又对小邻域（邻域点数小于5）的点集和大邻域（邻域点数大于20）的点集进行了同样的实验。表\ref{khop_res} 是Titan与HybriG的性能表现。
 
@@ -85,7 +85,7 @@ $$\left | \left \{ (u,w):u,w\in{N_v},w\in{N_u} \right \} \right | = \sum_{u\in{N
 \end{figure}
 
 实验对比的是HybriG与直接将图存储在Titan中的传统方案。测试点集的抽取方式同7.1节，即小邻域（邻域点数小于5）的点集、随机采样点集和大邻域（邻域点数大于20）的点集，每个点集拥有100个点。图\ref{fig:local_cc}是实验结果。
-与k-hop查询一样，HybriG在局部聚集系数计算的性能上要远优与Titan，而且在大邻域点集上的优势更加明显。
+与k-hop查询一样，不管邻域点集的规模大小如何，HybriG在局部聚集系数计算的性能上要远优于Titan，而且在大邻域点集上的优势更加明显。
 
 \section{边集相关查询}
 下面介绍边集相关查询的两个实验结果。7.2.1节是两点间边集查询，在刑侦场景中，图中的一类顶点代表人，人之间的边代表两人的关系，比如共同出行记录、共同住宿酒店记录、通话记录等。当研判专家锁定两个嫌疑人后，需要查询两人间的关系数据，即为两点间边集查询。7.2.2节是邻接边集查询，在刑侦场景中，锁定嫌疑人后要查看其某种类型的关系数据，即为邻接边集查询。这两种查询的图查询语句是不同的，前者限定了边的两个邻接点，后者只给定了边一个端点，侧重于限定label。使用Blueprints图查询接口，两点间边集查询的示例语句如下：
@@ -97,6 +97,25 @@ $$\left | \left \{ (u,w):u,w\in{N_v},w\in{N_u} \right \} \right | = \sum_{u\in{N
   v.getEdges(Direction.BOTH, eLabel)
 \end{center}
 其中v1、v2、v是顶点，eLabel是边的一种label，Direction.BOTH是常量，代表边的方向可以是入边或出边。
+图\ref{fig:edge_queries}展示了两种查询，其中查询结果用高亮显示。
+
+\begin{figure}
+\centering
+\begin{subfigure}[b]{.3\linewidth}
+\centering
+\includegraphics[width=50mm]{fig/2v_edge_query.pdf}
+\subcaption{给定两点间的边集查询}
+\end{subfigure}
+\qquad
+\begin{subfigure}[b]{.3\linewidth}
+\centering
+\includegraphics[width=50mm]{fig/get_edges_query.pdf}
+\subcaption{给定一点及某种边Label的边集查询}
+\end{subfigure}
+\caption{边集查询示例}
+\label{fig:edge_queries}
+\end{figure}
+
 \subsection{两点间边集查询}
 实验测试的是给定两个点和一个label，查询两点间该label的所有边。在图中随机抽取100个有边相连的点对，实验测试查询这些边的耗时。
 
@@ -107,10 +126,10 @@ $$\left | \left \{ (u,w):u,w\in{N_v},w\in{N_u} \right \} \right | = \sum_{u\in{N
 \label{fig:edge_query_perf}
 \end{figure}
 
-图\ref{fig:edge_query_perf}统计了两种系统的时间对比，两种方案的查询耗时非常接近。HybriG的存储层基于Titan和HBase实现，对边集的查询先要在Titan里查询边id，再在HBase的边表中查询具体的边，因此时间开销分两部分（详见5.1节）。图中展示了HybriG查询时间的两部分组成。两种方案的耗时相近主要有两方面的原因。
+图\ref{fig:edge_query_perf}统计了两种系统的时间对比，两种方案的查询耗时非常接近。需要明确的是HybriG的边集查询性能并没有优势，因为HybriG的存储层基于Titan和HBase实现，对边集的查询先要在Titan里查询边id，再在HBase的边表中查询具体的边，底层实现时多一次查询的开销（详见5.1节）。图中展示了HybriG查询时间的两部分组成。两种方案的耗时相近主要有两方面的原因。
 
 一方面，HybriG检索边集数据需要在Titan和HBase这两个数据库中进行查询，且这两个查询不能并行。传统方案只需要在Titan中查询，HybriG多加了一轮查询的时间开销。然而，这部分的时间开销并不是很大。Titan的数据表本身也存储在HBase中，HybriG的查询实际上只是HBase中的跨表查询。跨表查询能共用HBase的一些缓存信息，如HMaster、RegionServer的位置信息、HBase中Root表和Meta表的信息等。不过尽管只是跨表查询，在这方面HybriG还是引入了时间开销。
-但另一方面，HybriG对边集的查询是转化为HBase边表中的行级别检索（详见5.1节）。而将图存储在Titan中的方案，对边集的查询实际是转化为HBase数据表中选定行后的列级别检索。当图中含有大量重边时，前者是在一张高窄（tall-narrow）表中查找连续的几行，后者是在一张扁宽（flat-wide）表中选定一行后查找连续的几列，前者的性能会略优一些。因此在这方面HybriG略优。
+但另一方面，HybriG对边集的查询是转化为HBase边表中的行级别检索（详见\ref{chap:edge_query}节）。而将图存储在Titan中的方案，对边集的查询实际是转化为HBase数据表中选定行后的列级别检索。当图中含有大量重边时，前者是在一张高窄（tall-narrow）表中查找连续的几行，后者是在一张扁宽（flat-wide）表中选定一行后查找连续的几列，前者的性能会略优一些。因此在这方面HybriG略优。
 
 
 \subsection{邻接边集查询}
@@ -123,10 +142,13 @@ $$\left | \left \{ (u,w):u,w\in{N_v},w\in{N_u} \right \} \right | = \sum_{u\in{N
 \label{fig:get_edges}
 \end{figure}
 
-图\ref{fig:get_edges}展示的是两种系统的查询时间，以及查询耗时中具体的时间组成，其中HybriG的查询时间分为Titan中的查询耗时和HBase中的查询耗时两部分。当边集规模增大时，HybriG在Titan中的查询耗时并没有显著增加，而在HBase边表中的查询耗时增长的幅度也没有传统方案中的Titan大。
+图\ref{fig:get_edges}展示的是两种系统的查询时间，以及查询耗时中具体的时间组成，其中HybriG的查询时间分为Titan中的查询耗时和HBase中的查询耗时两部分。当边集规模增大时，查询结果集也会相应增大，HybriG在Titan中的查询耗时分别是1780、1929、2121毫秒，相比总时间并没有显著增加，这主要缘于HybriG精简的链接表设计。当边集规模增大时，HybriG主要的耗时增长在HBase查询部分，即在HBase边表中取出重边的数据。这部分耗时增长的幅度也没有传统方案中的Titan大，这主要缘于HBase边表中每行只有一条边，边表是一张高而窄的表，对边数据的查找是行级别的检索，可通过一个顺序scan得到；而Titan存储重边时其HBase中的数据表每行存了一个点的所有边，其数据表横向膨胀，在其中检索边集数据是列级别的检索，在HBase中scan时需要加列名的filter，性能会略慢于前者。
 
 \section{边数据的导入速度}
-关于边的数据导入速度，我们对不同规模的图进行了测试，对比直接将图存储在Titan以及将图存储在HybriG的两种方案。由于点集数据都存储在Titan中，两种方案在点集数据导入上的性能是接近的，下面展示的是边集数据的导入速度。我们基于MapReduce\supercite{mapreduce}开发了分布式的导入程序，将待导入的边集数据均分，之后在各个机器上进行导入。在HybriG中，边集数据导入分为更新Titan和更新HBase两个步骤。在更新HBase时我们使用HBase的Bulk Loading\footnote{HBase Bulk Loading, http://hbase.apache.org/book.html\#arch.bulk.load}技术来进行加速。
+关于边的数据导入速度，我们对不同规模的图进行了测试，对比直接将图存储在Titan以及将图存储在HybriG的两种方案。由于点集数据都存储在Titan中，两种方案在点集数据导入上的性能是接近的，这里不作展示，下面展示的是边集数据的导入速度。
+
+我们基于MapReduce\supercite{mapreduce}开发了分布式的导入程序，将待导入的边集数据均分，之后在各个机器上进行导入。在Titan的分布式导入程序中，每个Mapper负责一部分数据的导入，不需要Reducer。HybriG的分布式导入程序同样基于MapReduce实现。在HybriG中，边集数据导入分为更新Titan和更新HBase两个步骤（详见\ref{chap:insert_edge}节）。在更新HBase时我们使用HBase的Bulk Loading\footnote{HBase Bulk Loading, http://hbase.apache.org/book.html\#arch.bulk.load}技术来进行加速。具体地，每个Mapper负责Titan的更新，以及输出要写入HBase边表的Key-Value对。Mapper里的逻辑包含了\ref{chap:consistence}节中提到的保证一致性的错误恢复机制。而Reducer使用的是HBase Bulk Loading提供的Reducer，其自动完成Bulk Loading的后续流程，将数据生成HFile并放入RegionServer的目录中。
+
 表\ref{edge_load_perf}是边数据导入时间的统计：
 \begin{table}[!hbp]
 \begin{tabular}{|c|c|c|c|c|c|}
@@ -146,7 +168,8 @@ $$\left | \left \{ (u,w):u,w\in{N_v},w\in{N_u} \right \} \right | = \sum_{u\in{N
 
 可以看到，在所有测试用图中，HybriG对边集数据的导入拥有更高的速度。这主要有两方面的原因：一是HybriG对HBase边表的数据导入使用了HBase的Bulk Loading技术，可以直接从MapReduce生成HBase底层的HFile，绕过了HBase RegionServer数据写入的开销。而Titan的API实际转化为HBase的API，仍需要通过RegionServer进行写入，没有使用Bulk Loading的方案。二是Titan对新增的点和边都会分配一个全局唯一的id（这也是Titan没有实现HBase Bulk Loading的重要原因），每一个负责数据导入的Worker（Titan Client）需要获得全局唯一的一个ID Block，等待协调分配的开销会拖慢Worker的进度。HybriG大大减小了自身Titan中的边数目，从而节省了id分配的时间开销。
 
-
+\section{小结}
+相比于使用Titan存储重边数据的解决方案，HybriG架构在存储重边数据时，能提供更高效的邻域点集相关查询。在边集查询方面，HybriG的性能与传统图数据库Titan相当。在数据导入方面，点集数据的导入上二都性能相当，在边集数据的导入上HybriG具有更优异的性能。
 
 
 % vim:ts=4:sw=4
